@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --clay: #d8d2c4;
+  --casper: #c9c7c2;
+  --gray: #8e8e8e;
+  --charcoal: #242424;
+  --deep: #111111;
+
+  --paper: var(--clay);
+  --surface: var(--casper);
+  --text: var(--charcoal);
+  --text-soft: var(--gray);
+  --divider: rgba(36, 36, 36, 0.12);
+  --overlay: rgba(17, 17, 17, 0.32);
+  --active: rgba(36, 36, 36, 0.06);
+  --strong: var(--deep);
+  --on-strong: var(--clay);
+
+  /* Writing-environment preferences — updated at runtime by EditorPreferencesProvider */
+  --ms-size: 17px;
+  --ms-lh: 1.72;
+  --manuscript-font: var(--font-fraunces);
+}
+
+.dark {
+  --paper: var(--deep);
+  --surface: var(--charcoal);
+  --text: var(--clay);
+  --text-soft: var(--gray);
+  --divider: rgba(216, 210, 196, 0.12);
+  --overlay: rgba(0, 0, 0, 0.5);
+  --active: rgba(216, 210, 196, 0.08);
+  --strong: var(--clay);
+  --on-strong: var(--deep);
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--paper);
+  color: var(--text);
+  transition: background 0.35s ease, color 0.35s ease;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
