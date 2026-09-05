@@ -29,25 +29,27 @@ export function useDragSheet({ axis, direction, durationMs = 300, onOpenChange }
   const velocity = useRef(0);
 
   const clientPos = (e: PointerEvent) => (axis === "y" ? e.clientY : e.clientX);
-  const closedPx = () => direction * size.current;
+  const closedPx = useCallback(() => direction * size.current, [direction]);
 
-  const paint = useCallback((px: number, animate: boolean) => {
-    currentPx.current = px;
-    const panel = panelRef.current;
-    if (panel) {
-      panel.style.transition = animate ? `transform ${durationMs}ms ${EASE}` : "none";
-      panel.style.transform = axis === "y" ? `translateY(${px}px)` : `translateX(${px}px)`;
-    }
-    const dimmer = dimmerRef.current;
-    if (dimmer) {
-      const denom = size.current || 1;
-      const progress = Math.max(0, Math.min(1, Math.abs(px - closedPx()) / denom));
-      dimmer.style.transition = animate ? `opacity ${durationMs}ms ease` : "none";
-      dimmer.style.opacity = String(progress);
-      dimmer.style.pointerEvents = progress > 0.02 ? "auto" : "none";
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [axis, durationMs]);
+  const paint = useCallback(
+    (px: number, animate: boolean) => {
+      currentPx.current = px;
+      const panel = panelRef.current;
+      if (panel) {
+        panel.style.transition = animate ? `transform ${durationMs}ms ${EASE}` : "none";
+        panel.style.transform = axis === "y" ? `translateY(${px}px)` : `translateX(${px}px)`;
+      }
+      const dimmer = dimmerRef.current;
+      if (dimmer) {
+        const denom = size.current || 1;
+        const progress = Math.max(0, Math.min(1, Math.abs(px - closedPx()) / denom));
+        dimmer.style.transition = animate ? `opacity ${durationMs}ms ease` : "none";
+        dimmer.style.opacity = String(progress);
+        dimmer.style.pointerEvents = progress > 0.02 ? "auto" : "none";
+      }
+    },
+    [axis, durationMs, closedPx]
+  );
 
   const measure = useCallback(() => {
     if (panelRef.current) {
@@ -62,7 +64,7 @@ export function useDragSheet({ axis, direction, durationMs = 300, onOpenChange }
       onOpenChange?.(next);
       paint(next ? 0 : closedPx(), animate);
     },
-    [measure, paint, onOpenChange]
+    [measure, paint, onOpenChange, closedPx]
   );
 
   // Place the panel off-screen before first paint.
@@ -86,8 +88,7 @@ export function useDragSheet({ axis, direction, durationMs = 300, onOpenChange }
         /* not all targets support capture */
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [axis]
+    [axis, measure]
   );
 
   useEffect(() => {
@@ -122,8 +123,7 @@ export function useDragSheet({ axis, direction, durationMs = 300, onOpenChange }
       document.removeEventListener("pointerup", end);
       document.removeEventListener("pointercancel", end);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [axis, direction, paint, onOpenChange]);
+  }, [axis, direction, paint, onOpenChange, closedPx]);
 
   return { panelRef, dimmerRef, open, setOpen, startDrag };
 }
