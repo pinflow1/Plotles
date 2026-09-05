@@ -126,7 +126,7 @@ export function SettingsView({ user }: { user: { penName: string; email: string;
                 </button>
               ) : (
                 <div>
-                  <p className="mb-3 text-sm text-text-soft">This permanently deletes the story for every collaborator. There's no undo.</p>
+                  <p className="mb-3 text-sm text-text-soft">This permanently deletes the story for every collaborator. There is no undo.</p>
                   <div className="flex gap-2">
                     <button
                       onClick={() => setConfirmingDelete(false)}
@@ -152,4 +152,4 @@ export function SettingsView({ user }: { user: { penName: string; email: string;
       <NavDrawer open={drawerOpen} onOpenChange={setDrawerOpen} user={user} active="settings" />
     </div>
   );
-}
+      }
