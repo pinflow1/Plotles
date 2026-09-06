@@ -25,6 +25,10 @@ export async function POST(req: NextRequest) {
     return res;
   } catch (err) {
     console.error("POST /api/auth/login failed:", err);
-    return NextResponse.json({ error: "Something went wrong signing you in. Please try again." }, { status: 500 });
+    // TEMPORARY: showing the real error so it's visible on-screen while
+    // you're the only user — swap back to a generic message before this
+    // has real users, so internals aren't exposed to them.
+    const detail = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: `Sign-in failed: ${detail}` }, { status: 500 });
   }
 }
