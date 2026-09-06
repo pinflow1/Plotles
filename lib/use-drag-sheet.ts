@@ -28,7 +28,7 @@ export function useDragSheet({ axis, direction, durationMs = 300, onOpenChange }
   const lastMove = useRef({ pos: 0, t: 0 });
   const velocity = useRef(0);
 
-  const clientPos = (e: PointerEvent) => (axis === "y" ? e.clientY : e.clientX);
+  const clientPos = useCallback((e: PointerEvent) => (axis === "y" ? e.clientY : e.clientX), [axis]);
   const closedPx = useCallback(() => direction * size.current, [direction]);
 
   const paint = useCallback(
@@ -88,7 +88,7 @@ export function useDragSheet({ axis, direction, durationMs = 300, onOpenChange }
         /* not all targets support capture */
       }
     },
-    [axis, measure]
+    [axis, measure, clientPos]
   );
 
   useEffect(() => {
@@ -123,7 +123,7 @@ export function useDragSheet({ axis, direction, durationMs = 300, onOpenChange }
       document.removeEventListener("pointerup", end);
       document.removeEventListener("pointercancel", end);
     };
-  }, [axis, direction, paint, onOpenChange, closedPx]);
+  }, [axis, direction, paint, onOpenChange, closedPx, clientPos]);
 
   return { panelRef, dimmerRef, open, setOpen, startDrag };
-}
+     }
