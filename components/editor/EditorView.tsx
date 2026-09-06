@@ -54,15 +54,15 @@ export function EditorView({
   // chapters doesn't need a new room connection.
   // ASSUMPTION FLAGGED: `field` on useLiveblocksExtension is my best
   // understanding of the current @liveblocks/react-tiptap API for
-  // multi-document rooms — worth a quick check against Liveblocks' docs
-  // before relying on it, since it couldn't be verified without network
-  // access in this environment.
+  // multi-document rooms — it typechecked against your installed version,
+  // which is a good sign, but that's not the same as confirming the
+  // runtime behavior (independent docs per chapter) is correct.
   const liveblocks = useLiveblocksExtension({ field: activeChapterId, offlineSupport_experimental: true });
 
   const editor = useEditor(
     {
       extensions: [
-        StarterKit.configure({ undoRedo: false }), // Liveblocks owns undo history
+        StarterKit.configure({ history: false }), // Liveblocks owns undo history
         Underline,
         TextStyle,
         Color,
@@ -180,4 +180,4 @@ export function EditorView({
       <NavDrawer open={drawerOpen} onOpenChange={setDrawerOpen} user={user} active="editor" />
     </div>
   );
-}
+      }
