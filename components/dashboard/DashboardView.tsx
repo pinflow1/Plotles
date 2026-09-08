@@ -25,16 +25,19 @@ export function DashboardView({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [newIdea, setNewIdea] = useState("");
   const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const mostRecent = projects[0];
   const mostRecentChapter = mostRecent && [...mostRecent.chapters].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0];
 
   async function newStory() {
     setCreating(true);
+    setError(null);
     try {
       const { project } = await api.post<{ project: ProjectWithChapters }>("/api/projects", { title: "Untitled Story" });
       router.push(`/editor/${project.id}`);
-    } finally {
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't start a new story. Please try again.");
       setCreating(false);
     }
   }
@@ -42,9 +45,14 @@ export function DashboardView({
   async function addIdea(e: React.FormEvent) {
     e.preventDefault();
     if (!newIdea.trim()) return;
-    const { idea } = await api.post<{ idea: Idea }>("/api/ideas", { body: newIdea.trim() });
-    setIdeas((prev) => [idea, ...prev]);
-    setNewIdea("");
+    setError(null);
+    try {
+      const { idea } = await api.post<{ idea: Idea }>("/api/ideas", { body: newIdea.trim() });
+      setIdeas((prev) => [idea, ...prev]);
+      setNewIdea("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't save that. Please try again.");
+    }
   }
 
   async function removeIdea(id: string) {
@@ -63,6 +71,8 @@ export function DashboardView({
       </header>
 
       <div className="mx-auto max-w-lg px-5">
+        {error && <p className="mt-2 text-sm text-text-soft">{error}</p>}
+
         {mostRecent && mostRecentChapter && (
           <section className="mt-2 rounded-2xl bg-surface p-5">
             <div className="text-xs uppercase tracking-[0.08em] text-text-soft">Continue Writing</div>
