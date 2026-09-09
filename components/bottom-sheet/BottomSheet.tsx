@@ -54,8 +54,17 @@ export function BottomSheet({
     <>
       <div ref={dimmerRef} onClick={() => setOpen(false)} className="pointer-events-none fixed inset-0 z-40 bg-overlay opacity-0" aria-hidden="true" />
 
-      {/* Thin edge strip that catches the opening swipe — present even while closed. */}
-      <div onPointerDown={startDrag} className="fixed inset-x-0 bottom-0 z-40 h-[30px] touch-none" aria-hidden="true" />
+      {/* Persistent handle: tap to open, or drag from anywhere along this
+          strip. Lives outside the panel so it's visible even when closed —
+          the old version was drag-only with nothing to see or tap. */}
+      <button
+        onPointerDown={startDrag}
+        onClick={() => setOpen(true)}
+        aria-label="Open writing controls"
+        className="fixed inset-x-0 bottom-0 z-40 flex touch-none justify-center pb-[max(10px,env(safe-area-inset-bottom))] pt-3"
+      >
+        <div className="h-1.5 w-11 rounded-full bg-text-soft/60 shadow-[0_1px_4px_rgba(0,0,0,0.15)]" />
+      </button>
 
       <div
         ref={panelRef}
