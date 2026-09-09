@@ -12,13 +12,26 @@ export default async function EditorPage({ params }: { params: { projectId: stri
   const role = await getProjectRole(userId, params.projectId);
   if (!role) notFound();
 
-  const [project, user] = await Promise.all([
-    prisma.project.findUnique({
-      where: { id: params.projectId },
-      include: { chapters: { orderBy: { orderIndex: "asc" } } },
-    }),
-    prisma.user.findUnique({ where: { id: userId }, select: { penName: true, avatarUrl: true } }),
-  ]);
+  let project, user;
+  try {
+    [project, user] = await Promise.all([
+      prisma.project.findUnique({
+        where: { id: params.projectId },
+        include: { chapters: { orderBy: { orderIndex: "asc" } } },
+      }),
+      prisma.user.findUnique({ where: { id: userId }, select: { penName: true, avatarUrl: true } }),
+    ]);
+  } catch (err) {
+    console.error("EditorPage data fetch failed:", err);
+    const detail = err instanceof Error ? err.message : String(err);
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center gap-3 bg-[#111111] px-6 text-center text-[#D8D2C4]">
+        <p className="text-sm font-semibold uppercase tracking-wide text-[#8E8E8E]">Couldn&apos;t load this story</p>
+        <p className="max-w-sm text-sm">{detail}</p>
+      </main>
+    );
+  }
+
   if (!project || !user) notFound();
   if (project.chapters.length === 0) redirect("/dashboard");
 
