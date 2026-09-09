@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-const FLICK_VELOCITY_THRESHOLD = 0.55; // px/ms — matches the prototype
+const FLICK_VELOCITY_THRESHOLD = 0.4; // px/ms — lowered from the prototype's 0.55, a gentler flick now counts
 const EASE = "cubic-bezier(.32,.72,0,1)";
 
 type Axis = "y" | "x";
@@ -108,9 +108,13 @@ export function useDragSheet({ axis, direction, durationMs = 300, onOpenChange }
       if (!dragging.current) return;
       dragging.current = false;
       const isFlick = Math.abs(velocity.current) > FLICK_VELOCITY_THRESHOLD;
-      const nextOpen = isFlick
-        ? velocity.current * direction < 0
-        : Math.abs(currentPx.current - closedPx()) > size.current * 0.5;
+      // Non-flick: close once dragged past whichever is smaller — 30% of
+      // this panel's own size, or a flat 100px. A plain percentage made a
+      // tall sheet (up to 80vh) require a very long drag to dismiss; this
+      // keeps the close gesture short and consistent regardless of height.
+      const dragged = Math.abs(currentPx.current);
+      const closeThreshold = Math.min(size.current * 0.3, 100);
+      const nextOpen = isFlick ? velocity.current * direction < 0 : dragged < closeThreshold;
       setOpenState(nextOpen);
       onOpenChange?.(nextOpen);
       paint(nextOpen ? 0 : closedPx(), true);
@@ -126,4 +130,4 @@ export function useDragSheet({ axis, direction, durationMs = 300, onOpenChange }
   }, [axis, direction, paint, onOpenChange, closedPx, clientPos]);
 
   return { panelRef, dimmerRef, open, setOpen, startDrag };
-     }
+}
