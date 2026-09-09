@@ -56,14 +56,18 @@ export function BottomSheet({
 
       {/* Persistent handle: tap to open, or drag from anywhere along this
           strip. Lives outside the panel so it's visible even when closed —
-          the old version was drag-only with nothing to see or tap. */}
+          sits with a fixed gap above the true edge (not flush against it)
+          so it reads as a detached floating pill and stays clear of a
+          mobile browser's own bottom toolbar. */}
       <button
         onPointerDown={startDrag}
         onClick={() => setOpen(true)}
         aria-label="Open writing controls"
-        className="fixed inset-x-0 bottom-0 z-40 flex touch-none justify-center pb-[max(10px,env(safe-area-inset-bottom))] pt-3"
+        className="fixed inset-x-0 bottom-0 z-40 flex touch-none justify-center pb-[max(28px,calc(env(safe-area-inset-bottom)+20px))] pt-4"
       >
-        <div className="h-1.5 w-11 rounded-full bg-text-soft/60 shadow-[0_1px_4px_rgba(0,0,0,0.15)]" />
+        <div className="flex h-7 w-14 items-center justify-center rounded-full bg-surface shadow-[0_2px_10px_rgba(0,0,0,0.18)]">
+          <div className="h-1 w-7 rounded-full bg-text-soft/70" />
+        </div>
       </button>
 
       <div
