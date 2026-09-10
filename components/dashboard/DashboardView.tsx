@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { BookOpen, ChevronLeft, Plus } from "lucide-react";
+import { ChevronLeft, Plus } from "lucide-react";
 import type { Chapter, Idea, Project } from "@prisma/client";
 import { api } from "@/lib/api-client";
 import { timeAgo, formatWordCount } from "@/lib/format";
 import { NavDrawer } from "@/components/navigation/NavDrawer";
+import { ProjectRow } from "@/components/dashboard/ProjectRow";
 
 type ProjectWithChapters = Project & { chapters: Chapter[]; role: "owner" | "edit" | "view" };
 
@@ -60,6 +61,14 @@ export function DashboardView({
     await api.delete(`/api/ideas/${id}`);
   }
 
+  function handleRenamed(id: string, title: string) {
+    setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, title } : p)));
+  }
+
+  function handleDeleted(id: string) {
+    setProjects((prev) => prev.filter((p) => p.id !== id));
+  }
+
   return (
     <div className="min-h-screen bg-paper pb-16 pt-[env(safe-area-inset-top)]">
       <header className="flex items-center justify-between px-4 py-3">
@@ -98,25 +107,9 @@ export function DashboardView({
         </div>
 
         <div className="space-y-1">
-          {projects.map((p) => {
-            const chapter = [...p.chapters].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0];
-            return (
-              <button
-                key={p.id}
-                onClick={() => router.push(`/editor/${p.id}`)}
-                className="flex w-full items-center gap-3 rounded-xl px-2 py-2.5 text-left active:bg-active"
-              >
-                <div className="flex h-[50px] w-[38px] shrink-0 items-center justify-center rounded-md bg-surface">
-                  <BookOpen size={16} strokeWidth={1.5} className="text-text-soft" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[15px] text-text">{p.title}</div>
-                  <div className="truncate text-xs text-text-soft">{chapter?.title ?? "No chapters yet"}</div>
-                </div>
-                <div className="shrink-0 text-xs text-text-soft">{timeAgo(p.updatedAt)}</div>
-              </button>
-            );
-          })}
+          {projects.map((p) => (
+            <ProjectRow key={p.id} project={p} onRenamed={handleRenamed} onDeleted={handleDeleted} />
+          ))}
           {projects.length === 0 && <p className="px-2 py-4 text-sm text-text-soft">No stories yet — start your first one above.</p>}
         </div>
 
