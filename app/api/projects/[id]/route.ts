@@ -1,11 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
-import { canEdit, getProjectRole } from "@/lib/access";
+import { canEdit, getProjectRole, isOwner } from "@/lib/access";
 
-type Params = { params: { id: string; chapterId: string } };
+export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+  const userId = await getSessionUserId();
+  if (!userId) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
-export async function PATCH(req: NextRequest, { params }: Params) {
+  const role = await getProjectRole(userId, params.id);
+  if (!role) return NextResponse.json({ error: "Not found." }, { status: 404 });
+
+  const project = await prisma.project.findUnique({
+    where: { id: params.id },
+    include: { chapters: { orderBy: { orderIndex: "asc" } } },
+  });
+  if (!project) return NextResponse.json({ error: "Not found." }, { status: 404 });
+
+  return NextResponse.json({ project: { ...project, role } });
+}
+
+export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
@@ -13,76 +27,39 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (!canEdit(role)) return NextResponse.json({ error: "You don't have edit access." }, { status: 403 });
 
   const body = await req.json().catch(() => null);
-
-  if (body?.reorder === "up" || body?.reorder === "down") {
-    const chapters = await prisma.chapter.findMany({
-      where: { projectId: params.id },
-      orderBy: { orderIndex: "asc" },
-    });
-    const index = chapters.findIndex((c) => c.id === params.chapterId);
-    const swapWith = body.reorder === "up" ? index - 1 : index + 1;
-    if (index === -1 || swapWith < 0 || swapWith >= chapters.length) {
-      return NextResponse.json({ chapters });
-    }
-    const a = chapters[index];
-    const b = chapters[swapWith];
-    await prisma.$transaction([
-      prisma.chapter.update({ where: { id: a.id }, data: { orderIndex: b.orderIndex } }),
-      prisma.chapter.update({ where: { id: b.id }, data: { orderIndex: a.orderIndex } }),
-    ]);
-    const updated = await prisma.chapter.findMany({
-      where: { projectId: params.id },
-      orderBy: { orderIndex: "asc" },
-    });
-    return NextResponse.json({ chapters: updated });
-  }
-
   const data: Record<string, unknown> = {};
   if (typeof body?.title === "string" && body.title.trim()) data.title = body.title.trim();
-
-  let wordDelta = 0;
-  if (typeof body?.wordCount === "number" && Number.isFinite(body.wordCount)) {
-    const newCount = Math.max(0, Math.round(body.wordCount));
-    const current = await prisma.chapter.findUnique({ where: { id: params.chapterId }, select: { wordCount: true } });
-    wordDelta = newCount - (current?.wordCount ?? 0);
-    data.wordCount = newCount;
-  }
+  if (typeof body?.description === "string" || body?.description === null) data.description = body.description;
+  if (typeof body?.coverUrl === "string" || body?.coverUrl === null) data.coverUrl = body.coverUrl;
+  if (["planning", "drafting", "revising", "complete"].includes(body?.status)) data.status = body.status;
+  if (body?.goalWordCount === null) data.goalWordCount = null;
+  else if (typeof body?.goalWordCount === "number" && Number.isFinite(body.goalWordCount)) data.goalWordCount = Math.max(0, Math.round(body.goalWordCount));
+  if (body?.deadline === null) data.deadline = null;
+  else if (typeof body?.deadline === "string" && !isNaN(Date.parse(body.deadline))) data.deadline = new Date(body.deadline);
 
   try {
-    const [chapter] = await prisma.$transaction([
-      prisma.chapter.update({ where: { id: params.chapterId }, data }),
-      prisma.project.update({ where: { id: params.id }, data: { updatedAt: new Date() } }),
-    ]);
-
-    if (wordDelta !== 0) {
-      const today = new Date(new Date().toISOString().slice(0, 10)); // today, midnight UTC
-      await prisma.writingLog.upsert({
-        where: { userId_projectId_date: { userId, projectId: params.id, date: today } },
-        create: { userId, projectId: params.id, date: today, words: wordDelta },
-        update: { words: { increment: wordDelta } },
-      });
-    }
-
-    return NextResponse.json({ chapter });
+    const project = await prisma.project.update({ where: { id: params.id }, data });
+    return NextResponse.json({ project });
   } catch (err) {
-    console.error(`PATCH /api/projects/${params.id}/chapters/${params.chapterId} failed:`, err);
+    console.error(`PATCH /api/projects/${params.id} failed:`, err);
     const detail = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: `Couldn't save that: ${detail}` }, { status: 500 });
   }
 }
 
-export async function DELETE(_req: NextRequest, { params }: Params) {
+export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
   const role = await getProjectRole(userId, params.id);
-  if (!canEdit(role)) return NextResponse.json({ error: "You don't have edit access." }, { status: 403 });
+  if (!isOwner(role)) return NextResponse.json({ error: "Only the owner can delete this project." }, { status: 403 });
 
-  const remaining = await prisma.chapter.count({ where: { projectId: params.id } });
-  if (remaining <= 1) {
-    return NextResponse.json({ error: "A story needs at least one chapter." }, { status: 400 });
+  try {
+    await prisma.project.delete({ where: { id: params.id } });
+    return new NextResponse(null, { status: 204 });
+  } catch (err) {
+    console.error(`DELETE /api/projects/${params.id} failed:`, err);
+    const detail = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: `Couldn't delete that: ${detail}` }, { status: 500 });
   }
-
-  await prisma.chapter.delete({ where: { id: params.chapterId } });
-  return new NextResponse(null, { status: 204 });
 }
