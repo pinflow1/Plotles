@@ -5,20 +5,27 @@ import { useRouter } from "next/navigation";
 import { ChevronLeft, Plus } from "lucide-react";
 import type { Chapter, Idea, Project } from "@prisma/client";
 import { api } from "@/lib/api-client";
-import { timeAgo, formatWordCount } from "@/lib/format";
+import { formatWordCount } from "@/lib/format";
+import { computePace } from "@/lib/pace";
 import { NavDrawer } from "@/components/navigation/NavDrawer";
 import { ProjectRow } from "@/components/dashboard/ProjectRow";
+import { StreakHeatmap } from "@/components/dashboard/StreakHeatmap";
 
 type ProjectWithChapters = Project & { chapters: Chapter[]; role: "owner" | "edit" | "view" };
+type HeatmapDay = { date: string; words: number };
 
 export function DashboardView({
   initialProjects,
   initialIdeas,
   user,
+  streak,
+  heatmap,
 }: {
   initialProjects: ProjectWithChapters[];
   initialIdeas: Idea[];
   user: { penName: string; avatarUrl: string | null };
+  streak: number;
+  heatmap: HeatmapDay[];
 }) {
   const router = useRouter();
   const [projects, setProjects] = useState(initialProjects);
@@ -30,6 +37,8 @@ export function DashboardView({
 
   const mostRecent = projects[0];
   const mostRecentChapter = mostRecent && [...mostRecent.chapters].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0];
+  const mostRecentTotalWords = mostRecent?.chapters.reduce((sum, c) => sum + c.wordCount, 0) ?? 0;
+  const heroPace = mostRecent ? computePace(mostRecentTotalWords, mostRecent.goalWordCount, mostRecent.deadline) : null;
 
   async function newStory() {
     setCreating(true);
@@ -61,8 +70,8 @@ export function DashboardView({
     await api.delete(`/api/ideas/${id}`);
   }
 
-  function handleRenamed(id: string, title: string) {
-    setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, title } : p)));
+  function handleUpdated(id: string, patch: Partial<ProjectWithChapters>) {
+    setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
   }
 
   function handleDeleted(id: string) {
@@ -82,13 +91,31 @@ export function DashboardView({
       <div className="mx-auto max-w-lg px-5">
         {error && <p className="mt-2 text-sm text-text-soft">{error}</p>}
 
+        <StreakHeatmap streak={streak} heatmap={heatmap} />
+
         {mostRecent && mostRecentChapter && (
-          <section className="mt-2 rounded-2xl bg-surface p-5">
+          <section className="mt-4 rounded-2xl bg-surface p-5">
             <div className="text-xs uppercase tracking-[0.08em] text-text-soft">Continue Writing</div>
             <div className="mt-2 font-serif text-xl text-text">{mostRecent.title}</div>
             <div className="mt-0.5 text-sm text-text-soft">
-              {mostRecentChapter.title} · {formatWordCount(mostRecentChapter.wordCount)}
+              {mostRecentChapter.title} · {formatWordCount(mostRecentTotalWords)}
             </div>
+            {heroPace && (
+              <div className="mt-3">
+                <div className="h-1 overflow-hidden rounded-full bg-active">
+                  <div className="h-full rounded-full bg-strong" style={{ width: `${heroPace.progress * 100}%` }} />
+                </div>
+                <div className="mt-1 text-xs text-text-soft">
+                  {heroPace.wordsRemaining === 0
+                    ? "Goal reached"
+                    : heroPace.dailyTarget !== null
+                      ? heroPace.overdue
+                        ? `${heroPace.wordsRemaining.toLocaleString()} words left · past deadline`
+                        : `${heroPace.dailyTarget.toLocaleString()} words/day to finish on time`
+                      : `${heroPace.wordsRemaining.toLocaleString()} words to go`}
+                </div>
+              </div>
+            )}
             <button
               onClick={() => router.push(`/editor/${mostRecent.id}`)}
               className="mt-4 w-full rounded-xl bg-strong py-3 text-sm font-semibold text-on-strong transition-opacity active:opacity-85"
@@ -108,7 +135,7 @@ export function DashboardView({
 
         <div className="space-y-1">
           {projects.map((p) => (
-            <ProjectRow key={p.id} project={p} onRenamed={handleRenamed} onDeleted={handleDeleted} />
+            <ProjectRow key={p.id} project={p} onUpdated={handleUpdated} onDeleted={handleDeleted} />
           ))}
           {projects.length === 0 && <p className="px-2 py-4 text-sm text-text-soft">No stories yet — start your first one above.</p>}
         </div>
