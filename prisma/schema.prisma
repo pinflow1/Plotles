@@ -16,19 +16,47 @@ model User {
   createdAt      DateTime        @default(now())
   access         ProjectAccess[]
   ideas          Idea[]
+  logs           WritingLog[]
 }
 
 model Project {
-  id          String          @id @default(cuid())
-  title       String
-  description String?
-  coverUrl    String?
-  ownerId     String
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-  chapters    Chapter[]
-  access      ProjectAccess[]
-  ideas       Idea[]
+  id            String          @id @default(cuid())
+  title         String
+  description   String?
+  coverUrl      String?
+  ownerId       String
+  goalWordCount Int?
+  deadline      DateTime?
+  status        ProjectStatus   @default(drafting)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  chapters      Chapter[]
+  access        ProjectAccess[]
+  ideas         Idea[]
+  logs          WritingLog[]
+}
+
+enum ProjectStatus {
+  planning
+  drafting
+  revising
+  complete
+}
+
+// One row per user, per project, per calendar day — the running total for
+// that day gets incremented as the chapter's word count changes, so streaks
+// and the heatmap are built from real deltas rather than a point-in-time
+// snapshot.
+model WritingLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date
+  words     Int      @default(0)
+
+  @@unique([userId, projectId, date])
 }
 
 model Chapter {
