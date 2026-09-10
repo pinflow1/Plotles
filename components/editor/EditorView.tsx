@@ -14,6 +14,7 @@ import { ChevronLeft, Pencil } from "lucide-react";
 import type { Chapter, CollaboratorRole } from "@prisma/client";
 import { useEditorPreferences } from "@/lib/editor-preferences";
 import { useSessionCache } from "@/lib/session-cache";
+import { useWordCountSync } from "@/lib/use-word-count-sync";
 import { Manuscript } from "@/components/editor/Manuscript";
 import { SelectionToolbar } from "@/components/editor/SelectionToolbar";
 import { BottomSheet } from "@/components/bottom-sheet/BottomSheet";
@@ -54,9 +55,9 @@ export function EditorView({
   // chapters doesn't need a new room connection.
   // ASSUMPTION FLAGGED: `field` on useLiveblocksExtension is my best
   // understanding of the current @liveblocks/react-tiptap API for
-  // multi-document rooms — it typechecked against your installed version,
-  // which is a good sign, but that's not the same as confirming the
-  // runtime behavior (independent docs per chapter) is correct.
+  // multi-document rooms — worth a quick check against Liveblocks' docs
+  // before relying on it, since it couldn't be verified without network
+  // access in this environment.
   const liveblocks = useLiveblocksExtension({ field: activeChapterId, offlineSupport_experimental: true });
 
   const editor = useEditor(
@@ -76,6 +77,17 @@ export function EditorView({
     [activeChapterId]
   );
 
+  useWordCountSync({
+    editor,
+    projectId: project.id,
+    chapterId: activeChapterId,
+    initialWordCount: activeChapter?.wordCount ?? 0,
+    enabled: canEdit,
+    onSynced: (chapterId, wordCount) => {
+      setChapters((prev) => prev.map((c) => (c.id === chapterId ? { ...c, wordCount } : c)));
+    },
+  });
+
   // Let the nav drawer (and a future "resume where I left off") know where
   // we are, even after navigating to Dashboard/Settings and back.
   useEffect(() => {
@@ -90,8 +102,6 @@ export function EditorView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeChapter?.id, project.id, project.title]);
 
-  // Best-effort restore of scroll position on return to a chapter. Content
-  // itself never needs restoring — Liveblocks resyncs that regardless.
   const scrollRef = useRef<number>(0);
   useEffect(() => {
     const saved = sessionCache.get(activeChapterId)?.scrollTop;
@@ -107,8 +117,6 @@ export function EditorView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeChapterId]);
 
-  // Focus Mode closes the floating surfaces shortly after engaging, same
-  // 240ms grace the prototype gives so the closing animation isn't cut off.
   useEffect(() => {
     if (!focusMode) return;
     const t = setTimeout(() => {
@@ -169,15 +177,9 @@ export function EditorView({
         onSwitchChapter={setActiveChapterId}
       />
 
-      <QuickToolsPopover
-        editor={editor}
-        open={qtOpen}
-        onOpenChange={setQtOpen}
-        view={qtView}
-        onViewChange={setQtView}
-      />
+      <QuickToolsPopover editor={editor} open={qtOpen} onOpenChange={setQtOpen} view={qtView} onViewChange={setQtView} />
 
       <NavDrawer open={drawerOpen} onOpenChange={setDrawerOpen} user={user} active="editor" />
     </div>
   );
-      }
+}
