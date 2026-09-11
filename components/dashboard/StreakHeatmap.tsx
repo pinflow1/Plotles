@@ -7,6 +7,8 @@ function intensityClass(words: number): string {
   return "bg-strong";
 }
 
+// Arrange the flat 90-day array into GitHub-style weekly columns, padding
+// the first (partial) week so every column lines up Sun–Sat.
 function toWeeks(days: HeatmapDay[]): (HeatmapDay | null)[][] {
   if (days.length === 0) return [];
   const firstDow = new Date(days[0].date + "T00:00:00Z").getUTCDay();
