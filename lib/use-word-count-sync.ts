@@ -30,6 +30,7 @@ export function useWordCountSync({
 
   useEffect(() => {
     if (!editor || !enabled) return;
+    const ed = editor; // const capture — narrowing on `editor` itself doesn't survive into the closures below
 
     function flush(count: number) {
       if (count === lastSynced.current) return;
@@ -42,19 +43,19 @@ export function useWordCountSync({
     }
 
     function onUpdate() {
-      const count = countWords(editor.getText());
+      const count = countWords(ed.getText());
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(() => flush(count), DEBOUNCE_MS);
     }
 
-    editor.on("update", onUpdate);
+    ed.on("update", onUpdate);
     return () => {
-      editor.off("update", onUpdate);
+      ed.off("update", onUpdate);
       if (timer.current) {
         clearTimeout(timer.current);
-        flush(countWords(editor.getText()));
+        flush(countWords(ed.getText()));
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor, enabled, projectId, chapterId]);
-                                                                     }
+}
