@@ -164,4 +164,4 @@ export function DashboardView({
       <NavDrawer open={drawerOpen} onOpenChange={setDrawerOpen} user={user} active="dashboard" />
     </div>
   );
-            }
+}
