@@ -237,4 +237,4 @@ export function ProjectRow({
       )}
     </div>
   );
-                }
+                    }
