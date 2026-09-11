@@ -12,15 +12,16 @@ export function SelectionToolbar({ editor, onMore, hidden }: { editor: Editor | 
 
   useEffect(() => {
     if (!editor) return;
+    const ed = editor;
 
     function update() {
-      const { from, to, empty } = editor!.state.selection;
-      if (empty || !editor!.isFocused) {
+      const { from, to, empty } = ed.state.selection;
+      if (empty || !ed.isFocused) {
         setRect(null);
         return;
       }
-      const start = editor!.view.coordsAtPos(from);
-      const end = editor!.view.coordsAtPos(to);
+      const start = ed.view.coordsAtPos(from);
+      const end = ed.view.coordsAtPos(to);
       const toolbarWidth = toolbarRef.current?.offsetWidth ?? 180;
       const top = Math.min(start.top, end.top);
       const bottom = Math.max(start.bottom, end.bottom);
@@ -38,11 +39,11 @@ export function SelectionToolbar({ editor, onMore, hidden }: { editor: Editor | 
       setRect(null);
     }
 
-    editor.on("selectionUpdate", update);
-    editor.on("blur", onBlur);
+    ed.on("selectionUpdate", update);
+    ed.on("blur", onBlur);
     return () => {
-      editor.off("selectionUpdate", update);
-      editor.off("blur", onBlur);
+      ed.off("selectionUpdate", update);
+      ed.off("blur", onBlur);
     };
   }, [editor]);
 
@@ -95,4 +96,4 @@ function ToolbarButton({
       {children}
     </button>
   );
-}
+                                                                                                                               }
