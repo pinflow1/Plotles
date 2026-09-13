@@ -11,7 +11,7 @@ export default async function DashboardPage() {
   const [access, ideas, user, stats] = await Promise.all([
     prisma.projectAccess.findMany({
       where: { userId },
-      select: { role: true, project: { include: { chapters: true } } },
+      select: { role: true, project: { include: { chapters: true, access: true } } },
       orderBy: { project: { updatedAt: "desc" } },
     }),
     prisma.idea.findMany({ where: { userId }, orderBy: { createdAt: "desc" } }),
@@ -20,7 +20,11 @@ export default async function DashboardPage() {
   ]);
   if (!user) redirect("/login");
 
-  const projects = access.map((a) => ({ ...a.project, role: a.role }));
+  const projects = access.map((a) => ({
+    ...a.project,
+    role: a.role,
+    collaboratorCount: a.project.access.length,
+  }));
 
-  return <DashboardView initialProjects={projects} initialIdeas={ideas} user={user} streak={stats.streak} heatmap={stats.heatmap} />;
+  return <DashboardView projects={projects} initialIdeas={ideas} user={user} streak={stats.streak} heatmap={stats.heatmap} />;
 }
