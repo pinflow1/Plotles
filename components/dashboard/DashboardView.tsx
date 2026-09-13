@@ -8,27 +8,26 @@ import { api } from "@/lib/api-client";
 import { formatWordCount } from "@/lib/format";
 import { computePace } from "@/lib/pace";
 import { NavDrawer } from "@/components/navigation/NavDrawer";
-import { ProjectRow } from "@/components/dashboard/ProjectRow";
 import { StreakHeatmap } from "@/components/dashboard/StreakHeatmap";
+import { StoryCard } from "@/components/dashboard/StoryCard";
 
-type ProjectWithChapters = Project & { chapters: Chapter[]; role: "owner" | "edit" | "view" };
+type ProjectWithChapters = Project & { chapters: Chapter[]; role: "owner" | "edit" | "view"; collaboratorCount: number };
 type HeatmapDay = { date: string; words: number };
 
 export function DashboardView({
-  initialProjects,
+  projects,
   initialIdeas,
   user,
   streak,
   heatmap,
 }: {
-  initialProjects: ProjectWithChapters[];
+  projects: ProjectWithChapters[];
   initialIdeas: Idea[];
   user: { penName: string; avatarUrl: string | null };
   streak: number;
   heatmap: HeatmapDay[];
 }) {
   const router = useRouter();
-  const [projects, setProjects] = useState(initialProjects);
   const [ideas, setIdeas] = useState(initialIdeas);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [newIdea, setNewIdea] = useState("");
@@ -68,14 +67,6 @@ export function DashboardView({
   async function removeIdea(id: string) {
     setIdeas((prev) => prev.filter((i) => i.id !== id));
     await api.delete(`/api/ideas/${id}`);
-  }
-
-  function handleUpdated(id: string, patch: Partial<ProjectWithChapters>) {
-    setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
-  }
-
-  function handleDeleted(id: string) {
-    setProjects((prev) => prev.filter((p) => p.id !== id));
   }
 
   return (
@@ -126,19 +117,22 @@ export function DashboardView({
         )}
 
         <div className="mb-3 mt-8 flex items-center justify-between">
-          <span className="text-xs uppercase tracking-[0.08em] text-text-soft">Your Projects</span>
+          <span className="text-xs uppercase tracking-[0.08em] text-text-soft">Your Stories</span>
           <button onClick={newStory} disabled={creating} className="flex items-center gap-1 text-sm text-text disabled:opacity-50">
             <Plus size={14} strokeWidth={2} />
             New Story
           </button>
         </div>
 
-        <div className="space-y-1">
-          {projects.map((p) => (
-            <ProjectRow key={p.id} project={p} onUpdated={handleUpdated} onDeleted={handleDeleted} />
-          ))}
-          {projects.length === 0 && <p className="px-2 py-4 text-sm text-text-soft">No stories yet — start your first one above.</p>}
-        </div>
+        {projects.length === 0 ? (
+          <p className="px-2 py-4 text-sm text-text-soft">No stories yet — start your first one above.</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-x-4 gap-y-5">
+            {projects.map((p) => (
+              <StoryCard key={p.id} project={p} onClick={() => router.push(`/projects/${p.id}`)} />
+            ))}
+          </div>
+        )}
 
         <div className="mb-3 mt-8 text-xs uppercase tracking-[0.08em] text-text-soft">Ideas</div>
         <form onSubmit={addIdea} className="mb-2">
