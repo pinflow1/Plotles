@@ -5,7 +5,13 @@ import { getProjectRole } from "@/lib/access";
 import { Room } from "@/components/editor/Room";
 import { EditorView } from "@/components/editor/EditorView";
 
-export default async function EditorPage({ params }: { params: { projectId: string } }) {
+export default async function EditorPage({
+  params,
+  searchParams,
+}: {
+  params: { projectId: string };
+  searchParams: { chapter?: string };
+}) {
   const userId = await getSessionUserId();
   if (!userId) redirect(`/login?next=/editor/${params.projectId}`);
 
@@ -35,7 +41,8 @@ export default async function EditorPage({ params }: { params: { projectId: stri
   if (!project || !user) notFound();
   if (project.chapters.length === 0) redirect("/dashboard");
 
-  const initialChapter = [...project.chapters].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0] ?? project.chapters[0];
+  const requested = searchParams.chapter ? project.chapters.find((c) => c.id === searchParams.chapter) : undefined;
+  const initialChapter = requested ?? [...project.chapters].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0] ?? project.chapters[0];
 
   return (
     <Room projectId={project.id}>
@@ -46,4 +53,4 @@ export default async function EditorPage({ params }: { params: { projectId: stri
       />
     </Room>
   );
-}
+        }
