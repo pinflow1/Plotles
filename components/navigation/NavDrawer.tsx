@@ -11,7 +11,7 @@ type NavDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   user: { penName: string; avatarUrl: string | null };
-  active: "dashboard" | "editor" | "settings";
+  active: "dashboard" | "project" | "editor" | "settings";
 };
 
 export function NavDrawer({ open, onOpenChange, user, active }: NavDrawerProps) {
@@ -36,7 +36,7 @@ export function NavDrawer({ open, onOpenChange, user, active }: NavDrawerProps) 
     if (!current) return;
     const editorPath = `/editor/${current.projectId}`;
     if (pathname === editorPath) {
-      setOpen(false); // already there — closing the drawer is the whole action, no reload
+      setOpen(false);
       return;
     }
     go(editorPath);
@@ -50,7 +50,6 @@ export function NavDrawer({ open, onOpenChange, user, active }: NavDrawerProps) 
         className="pointer-events-none fixed inset-0 z-40 bg-overlay opacity-0"
         aria-hidden="true"
       />
-      {/* Left-edge strip that catches the opening swipe, present on every screen this drawer serves. */}
       <div
         onPointerDown={startDrag}
         className="fixed inset-y-0 left-0 z-40 w-5 touch-none"
@@ -127,4 +126,4 @@ function DrawerItem({
       {label}
     </button>
   );
-}
+  }
