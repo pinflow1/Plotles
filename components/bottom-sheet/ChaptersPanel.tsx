@@ -20,7 +20,7 @@ export function ChaptersPanel({
   canEdit: boolean;
   onChaptersChange: (chapters: Chapter[]) => void;
   onSwitchChapter: (chapterId: string) => void;
-  onBack: () => void;
+  onBack?: () => void;
 }) {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
@@ -71,12 +71,14 @@ export function ChaptersPanel({
 
   return (
     <div>
-      <div className="mb-3 flex items-center gap-2">
-        <button onClick={onBack} aria-label="Back" className="rounded-lg p-1 text-text-soft active:bg-active">
-          <ChevronLeft size={18} strokeWidth={1.8} />
-        </button>
-        <span className="text-[15px] text-text">Chapters</span>
-      </div>
+      {onBack && (
+        <div className="mb-3 flex items-center gap-2">
+          <button onClick={onBack} aria-label="Back" className="rounded-lg p-1 text-text-soft active:bg-active">
+            <ChevronLeft size={18} strokeWidth={1.8} />
+          </button>
+          <span className="text-[15px] text-text">Chapters</span>
+        </div>
+      )}
 
       <div className="space-y-0.5">
         {chapters.map((c, i) => (
