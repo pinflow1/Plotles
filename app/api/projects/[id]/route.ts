@@ -30,7 +30,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const data: Record<string, unknown> = {};
   if (typeof body?.title === "string" && body.title.trim()) data.title = body.title.trim();
   if (typeof body?.description === "string" || body?.description === null) data.description = body.description;
-  if (typeof body?.coverUrl === "string" || body?.coverUrl === null) data.coverUrl = body.coverUrl;
+  if (typeof body?.coverUrl === "string" || body?.coverUrl === null) {
+    if (typeof body?.coverUrl === "string" && body.coverUrl.length > 2_000_000) {
+      return NextResponse.json({ error: "That image is too large." }, { status: 413 });
+    }
+    data.coverUrl = body.coverUrl;
+  }
   if (["planning", "drafting", "revising", "complete"].includes(body?.status)) data.status = body.status;
   if (body?.goalWordCount === null) data.goalWordCount = null;
   else if (typeof body?.goalWordCount === "number" && Number.isFinite(body.goalWordCount)) data.goalWordCount = Math.max(0, Math.round(body.goalWordCount));
@@ -62,4 +67,4 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     const detail = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: `Couldn't delete that: ${detail}` }, { status: 500 });
   }
-}
+                            }
