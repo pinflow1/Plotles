@@ -11,8 +11,13 @@ export function StoryCard({ project, onClick }: { project: StoryCardProject; onC
 
   return (
     <button onClick={onClick} className="flex flex-col items-start rounded-xl text-left active:opacity-80">
-      <div className="relative flex aspect-[3/4] w-full items-center justify-center rounded-lg bg-surface">
-        <BookOpen size={26} strokeWidth={1.3} className="text-text-soft" />
+      <div className="relative flex aspect-[3/4] w-full items-center justify-center overflow-hidden rounded-lg bg-surface">
+        {project.coverUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- a data URL, not something next/image's optimizer can handle
+          <img src={project.coverUrl} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <BookOpen size={26} strokeWidth={1.3} className="text-text-soft" />
+        )}
         {project.collaboratorCount > 1 && (
           <div className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-paper/90">
             <Users size={11} strokeWidth={2} className="text-text-soft" />
