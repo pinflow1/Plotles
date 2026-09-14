@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { getStreakAndHeatmap } from "@/lib/streak";
+import { computePace } from "@/lib/pace";
 import { DashboardView } from "@/components/dashboard/DashboardView";
 
 export default async function DashboardPage() {
@@ -26,5 +27,20 @@ export default async function DashboardPage() {
     collaboratorCount: a.project.access.length,
   }));
 
-  return <DashboardView projects={projects} initialIdeas={ideas} user={user} streak={stats.streak} heatmap={stats.heatmap} />;
+  const dailyGoalTotal = projects.reduce((sum, p) => {
+    const totalWords = p.chapters.reduce((s, c) => s + c.wordCount, 0);
+    const pace = computePace(totalWords, p.goalWordCount, p.deadline);
+    return sum + (pace?.dailyTarget ?? 0);
+  }, 0);
+
+  return (
+    <DashboardView
+      projects={projects}
+      initialIdeas={ideas}
+      user={user}
+      streak={stats.streak}
+      heatmap={stats.heatmap}
+      dailyGoalTotal={dailyGoalTotal}
+    />
+  );
 }
