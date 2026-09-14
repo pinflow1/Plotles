@@ -1,14 +1,18 @@
 type HeatmapDay = { date: string; words: number };
 
-function intensityClass(words: number): string {
+function intensityClass(words: number, dailyGoalTotal: number): string {
   if (words <= 0) return "bg-active";
-  if (words < 200) return "bg-strong/30";
-  if (words < 600) return "bg-strong/60";
+  if (dailyGoalTotal > 0) {
+    const ratio = words / dailyGoalTotal;
+    if (ratio >= 1) return "bg-strong";
+    if (ratio >= 0.5) return "bg-strong/65";
+    return "bg-strong/35";
+  }
+  if (words < 200) return "bg-strong/35";
+  if (words < 600) return "bg-strong/65";
   return "bg-strong";
 }
 
-// Arrange the flat 90-day array into GitHub-style weekly columns, padding
-// the first (partial) week so every column lines up Sun–Sat.
 function toWeeks(days: HeatmapDay[]): (HeatmapDay | null)[][] {
   if (days.length === 0) return [];
   const firstDow = new Date(days[0].date + "T00:00:00Z").getUTCDay();
@@ -18,7 +22,7 @@ function toWeeks(days: HeatmapDay[]): (HeatmapDay | null)[][] {
   return weeks;
 }
 
-export function StreakHeatmap({ streak, heatmap }: { streak: number; heatmap: HeatmapDay[] }) {
+export function StreakHeatmap({ streak, heatmap, dailyGoalTotal }: { streak: number; heatmap: HeatmapDay[]; dailyGoalTotal: number }) {
   const weeks = toWeeks(heatmap);
 
   return (
@@ -33,7 +37,11 @@ export function StreakHeatmap({ streak, heatmap }: { streak: number; heatmap: He
           <div key={i} className="flex flex-col gap-[3px]">
             {week.map((day, j) =>
               day ? (
-                <div key={j} title={`${day.date}: ${day.words} word${day.words === 1 ? "" : "s"}`} className={`h-[11px] w-[11px] rounded-[2px] ${intensityClass(day.words)}`} />
+                <div
+                  key={j}
+                  title={`${day.date}: ${day.words} word${day.words === 1 ? "" : "s"}`}
+                  className={`h-[11px] w-[11px] rounded-[2px] ${intensityClass(day.words, dailyGoalTotal)}`}
+                />
               ) : (
                 <div key={j} className="h-[11px] w-[11px]" />
               )
@@ -41,7 +49,9 @@ export function StreakHeatmap({ streak, heatmap }: { streak: number; heatmap: He
           </div>
         ))}
       </div>
-      <div className="mt-2 text-[11px] text-text-soft">Last 90 days</div>
+      <div className="mt-2 text-[11px] text-text-soft">
+        Last 90 days{dailyGoalTotal > 0 ? " · full color means you hit that day's goal" : ""}
+      </div>
     </section>
   );
 }
