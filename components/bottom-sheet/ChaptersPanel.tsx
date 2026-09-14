@@ -25,16 +25,20 @@ export function ChaptersPanel({
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function reorder(chapterId: string, dir: "up" | "down") {
     if (!canEdit || busy) return;
     setBusy(true);
+    setError(null);
     try {
       const { chapters: updated } = await api.patch<{ chapters: Chapter[] }>(
         `/api/projects/${projectId}/chapters/${chapterId}`,
         { reorder: dir }
       );
       onChaptersChange(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't reorder that chapter.");
     } finally {
       setBusy(false);
     }
@@ -42,17 +46,31 @@ export function ChaptersPanel({
 
   async function rename(chapterId: string) {
     if (!draftTitle.trim()) return setRenamingId(null);
-    const { chapter } = await api.patch<{ chapter: Chapter }>(`/api/projects/${projectId}/chapters/${chapterId}`, {
-      title: draftTitle.trim(),
-    });
-    onChaptersChange(chapters.map((c) => (c.id === chapter.id ? chapter : c)));
-    setRenamingId(null);
+    setError(null);
+    try {
+      const { chapter } = await api.patch<{ chapter: Chapter }>(`/api/projects/${projectId}/chapters/${chapterId}`, {
+        title: draftTitle.trim(),
+      });
+      onChaptersChange(chapters.map((c) => (c.id === chapter.id ? chapter : c)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't rename that chapter.");
+    } finally {
+      setRenamingId(null);
+    }
   }
 
   async function addChapter() {
-    const { chapter } = await api.post<{ chapter: Chapter }>(`/api/projects/${projectId}/chapters`, {});
-    onChaptersChange([...chapters, chapter]);
-    onSwitchChapter(chapter.id);
+    setError(null);
+    setBusy(true);
+    try {
+      const { chapter } = await api.post<{ chapter: Chapter }>(`/api/projects/${projectId}/chapters`, {});
+      onChaptersChange([...chapters, chapter]);
+      onSwitchChapter(chapter.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't create a new chapter.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   function startRenaming(c: Chapter) {
@@ -63,10 +81,15 @@ export function ChaptersPanel({
   async function remove(chapterId: string) {
     if (chapters.length <= 1) return;
     if (!window.confirm("Delete this chapter? This can't be undone.")) return;
-    await api.delete(`/api/projects/${projectId}/chapters/${chapterId}`);
-    const remaining = chapters.filter((c) => c.id !== chapterId);
-    onChaptersChange(remaining);
-    if (chapterId === activeChapterId && remaining[0]) onSwitchChapter(remaining[0].id);
+    setError(null);
+    try {
+      await api.delete(`/api/projects/${projectId}/chapters/${chapterId}`);
+      const remaining = chapters.filter((c) => c.id !== chapterId);
+      onChaptersChange(remaining);
+      if (chapterId === activeChapterId && remaining[0]) onSwitchChapter(remaining[0].id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't delete that chapter.");
+    }
   }
 
   return (
@@ -79,6 +102,8 @@ export function ChaptersPanel({
           <span className="text-[15px] text-text">Chapters</span>
         </div>
       )}
+
+      {error && <p className="mb-2 text-xs text-text-soft">{error}</p>}
 
       <div className="space-y-0.5">
         {chapters.map((c, i) => (
@@ -127,9 +152,13 @@ export function ChaptersPanel({
       </div>
 
       {canEdit && (
-        <button onClick={addChapter} className="mt-3 flex w-full items-center gap-2 rounded-xl px-2 py-2.5 text-sm text-text-soft active:bg-active">
+        <button
+          onClick={addChapter}
+          disabled={busy}
+          className="mt-3 flex w-full items-center gap-2 rounded-xl px-2 py-2.5 text-sm text-text-soft active:bg-active disabled:opacity-50"
+        >
           <Plus size={16} strokeWidth={1.8} />
-          New chapter
+          {busy ? "Adding…" : "New chapter"}
         </button>
       )}
     </div>
