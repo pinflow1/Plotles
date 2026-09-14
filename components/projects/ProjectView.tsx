@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BookOpen, ChevronLeft, ImageIcon, Download, Users, Info, Flag, Target, Trash2 } from "lucide-react";
+import { BookOpen, ChevronLeft, ImageIcon, Download, Users, Info, Flag, Target, Trash2, Camera } from "lucide-react";
 import type { Chapter, Project, ProjectStatus } from "@prisma/client";
 import { api } from "@/lib/api-client";
 import { timeAgo } from "@/lib/format";
 import { computePace } from "@/lib/pace";
+import { fileToCoverDataUrl } from "@/lib/image-resize";
 import { NavDrawer } from "@/components/navigation/NavDrawer";
 import { ChaptersPanel } from "@/components/bottom-sheet/ChaptersPanel";
 import { CollaboratorsPanel } from "@/components/bottom-sheet/CollaboratorsPanel";
@@ -42,6 +43,9 @@ export function ProjectView({
   const [draftGoal, setDraftGoal] = useState(project.goalWordCount ? String(project.goalWordCount) : "");
   const [draftDeadline, setDraftDeadline] = useState(toDateInputValue(project.deadline));
   const [busy, setBusy] = useState(false);
+  const [coverBusy, setCoverBusy] = useState(false);
+  const [coverError, setCoverError] = useState<string | null>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   const canEdit = project.role === "owner" || project.role === "edit";
   const chapters = project.chapters;
@@ -59,6 +63,23 @@ export function ProjectView({
 
   function handleChaptersChange(updated: Chapter[]) {
     setProject((prev) => ({ ...prev, chapters: updated }));
+  }
+
+  async function onCoverSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow picking the same file again later
+    if (!file || !canEdit) return;
+    setCoverError(null);
+    setCoverBusy(true);
+    try {
+      const dataUrl = await fileToCoverDataUrl(file);
+      await api.patch(`/api/projects/${project.id}`, { coverUrl: dataUrl });
+      setProject((prev) => ({ ...prev, coverUrl: dataUrl }));
+    } catch (err) {
+      setCoverError(err instanceof Error ? err.message : "Couldn't set that cover.");
+    } finally {
+      setCoverBusy(false);
+    }
   }
 
   async function saveDetails() {
@@ -113,6 +134,8 @@ export function ProjectView({
 
   return (
     <div className="min-h-screen bg-paper pb-16 pt-[env(safe-area-inset-top)]">
+      <input ref={coverInputRef} type="file" accept="image/*" onChange={onCoverSelected} className="hidden" />
+
       <header className="flex items-center justify-between px-4 py-3">
         <button onClick={() => setDrawerOpen(true)} aria-label="Menu" className="rounded-lg p-2.5 text-text active:bg-active">
           <ChevronLeft size={20} strokeWidth={1.6} />
@@ -123,9 +146,30 @@ export function ProjectView({
 
       <div className="mx-auto max-w-lg px-5">
         <section className="flex flex-col items-center pt-2 text-center">
-          <div className="flex h-32 w-24 items-center justify-center rounded-lg bg-surface">
-            <BookOpen size={28} strokeWidth={1.3} className="text-text-soft" />
-          </div>
+          <button
+            onClick={() => canEdit && coverInputRef.current?.click()}
+            disabled={!canEdit || coverBusy}
+            aria-label={project.coverUrl ? "Change cover" : "Add cover"}
+            className="relative flex h-32 w-24 items-center justify-center overflow-hidden rounded-lg bg-surface"
+          >
+            {project.coverUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- a data URL, not something next/image's optimizer can handle
+              <img src={project.coverUrl} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <BookOpen size={28} strokeWidth={1.3} className="text-text-soft" />
+            )}
+            {canEdit && (
+              <div className="absolute bottom-1 right-1 flex h-6 w-6 items-center justify-center rounded-full bg-paper/90">
+                {coverBusy ? (
+                  <div className="h-3 w-3 animate-spin rounded-full border-[1.5px] border-text-soft border-t-transparent" />
+                ) : (
+                  <Camera size={12} strokeWidth={2} className="text-text-soft" />
+                )}
+              </div>
+            )}
+          </button>
+          {coverError && <p className="mt-2 text-xs text-text-soft">{coverError}</p>}
+
           <h1 className="mt-4 font-serif text-2xl text-text">{project.title}</h1>
           {project.description && <p className="mt-1 max-w-xs text-sm text-text-soft">{project.description}</p>}
           <p className="mt-1 text-xs text-text-soft">
@@ -177,7 +221,14 @@ export function ProjectView({
             {canEdit && <ActionRow icon={Info} label="Details" onClick={() => setPanel(panel === "details" ? null : "details")} />}
             {canEdit && <ActionRow icon={Flag} label="Status" value={STATUS_LABELS[project.status]} onClick={() => setPanel(panel === "status" ? null : "status")} />}
             {canEdit && <ActionRow icon={Target} label="Goal" onClick={() => setPanel(panel === "goal" ? null : "goal")} />}
-            <ActionRow icon={ImageIcon} label="Cover" value="Coming soon" disabled onClick={() => {}} />
+            {canEdit && (
+              <ActionRow
+                icon={ImageIcon}
+                label="Cover"
+                value={coverBusy ? "Uploading…" : project.coverUrl ? "Change" : "Add"}
+                onClick={() => coverInputRef.current?.click()}
+              />
+            )}
             <ActionRow icon={Download} label="Export" value="Coming soon" disabled onClick={() => {}} />
             <ActionRow icon={Users} label="Collaborators" onClick={() => setPanel(panel === "collaborators" ? null : "collaborators")} last={project.role !== "owner"} />
             {project.role === "owner" && <ActionRow icon={Trash2} label="Delete Project" onClick={() => setPanel(panel === "delete" ? null : "delete")} last />}
@@ -308,4 +359,4 @@ function ActionRow({
       {value && <span className="text-xs text-text-soft">{value}</span>}
     </button>
   );
-                                             }
+      }
