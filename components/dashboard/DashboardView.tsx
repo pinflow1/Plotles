@@ -20,12 +20,14 @@ export function DashboardView({
   user,
   streak,
   heatmap,
+  dailyGoalTotal,
 }: {
   projects: ProjectWithChapters[];
   initialIdeas: Idea[];
   user: { penName: string; avatarUrl: string | null };
   streak: number;
   heatmap: HeatmapDay[];
+  dailyGoalTotal: number;
 }) {
   const router = useRouter();
   const [ideas, setIdeas] = useState(initialIdeas);
@@ -82,7 +84,7 @@ export function DashboardView({
       <div className="mx-auto max-w-lg px-5">
         {error && <p className="mt-2 text-sm text-text-soft">{error}</p>}
 
-        <StreakHeatmap streak={streak} heatmap={heatmap} />
+        <StreakHeatmap streak={streak} heatmap={heatmap} dailyGoalTotal={dailyGoalTotal} />
 
         {mostRecent && mostRecentChapter && (
           <section className="mt-4 rounded-2xl bg-surface p-5">
@@ -158,4 +160,4 @@ export function DashboardView({
       <NavDrawer open={drawerOpen} onOpenChange={setDrawerOpen} user={user} active="dashboard" />
     </div>
   );
-}
+                }
