@@ -3,15 +3,15 @@
 @tailwind utilities;
 
 :root {
-  --clay: #d8d2c4;
-  --casper: #c9c7c2;
-  --gray: #8e8e8e;
+  --clay: #D8D2C4;
+  --casper: #C9C7C2;
+  --gray: #8E8E8E;
   --charcoal: #242424;
   --deep: #111111;
 
   --paper: var(--clay);
   --surface: var(--casper);
-  --text: var(--charcoal);
+  --text: var(--deep);
   --text-soft: var(--gray);
   --divider: rgba(36, 36, 36, 0.12);
   --overlay: rgba(17, 17, 17, 0.32);
@@ -19,10 +19,13 @@
   --strong: var(--deep);
   --on-strong: var(--clay);
 
-  /* Writing-environment preferences — updated at runtime by EditorPreferencesProvider */
-  --ms-size: 17px;
-  --ms-lh: 1.72;
-  --manuscript-font: var(--font-fraunces);
+  /* RGB triplets for colors that need Tailwind's opacity-modifier syntax
+     (bg-strong/50 etc.) — a plain var(--x) color reference silently fails
+     to apply any opacity in this Tailwind version; it specifically needs
+     the "R G B" triplet form paired with rgb(var(--x-rgb) / <alpha-value>)
+     in tailwind.config.ts. */
+  --strong-rgb: 17 17 17;
+  --text-soft-rgb: 142 142 142;
 }
 
 .dark {
@@ -35,51 +38,42 @@
   --active: rgba(216, 210, 196, 0.08);
   --strong: var(--clay);
   --on-strong: var(--deep);
+
+  --strong-rgb: 216 210 196;
 }
 
 * {
-  box-sizing: border-box;
+  border-color: var(--divider);
+}
+
+html {
   -webkit-tap-highlight-color: transparent;
 }
 
-html,
 body {
-  height: 100%;
-  margin: 0;
-}
-
-body {
-  background: var(--paper);
+  background-color: var(--paper);
   color: var(--text);
-  transition: background 0.35s ease, color 0.35s ease;
 }
 
-button:focus-visible,
-a:focus-visible,
-input:focus-visible,
-textarea:focus-visible {
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+:focus-visible {
   outline: 2px solid var(--text);
   outline-offset: 2px;
-  border-radius: 6px;
 }
 
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
-    animation-duration: 0.001ms !important;
+    animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
-    scroll-behavior: auto !important;
-  }
-}
-
-@layer utilities {
-  .scrollbar-hide {
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
+    transition-duration: 0.01ms !important;
   }
 }
