@@ -8,9 +8,7 @@ function intensityClass(words: number, dailyGoalTotal: number): string {
     if (ratio >= 0.5) return "bg-strong/65";
     return "bg-strong/35";
   }
-  if (words < 200) return "bg-strong/35";
-  if (words < 600) return "bg-strong/65";
-  return "bg-strong";
+  return "bg-strong/55";
 }
 
 function toWeeks(days: HeatmapDay[]): (HeatmapDay | null)[][] {
