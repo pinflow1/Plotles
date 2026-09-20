@@ -1,8 +1,8 @@
 "use client";
 
 import type { Editor } from "@tiptap/react";
-import { AlignLeft, AlignCenter, AlignRight, AlignJustify } from "lucide-react";
-import { FONT_LABELS, LINE_SPACING_VALUES, type FontChoice, type LineSpacing, useEditorPreferences } from "@/lib/editor-preferences";
+import { AlignLeft, AlignCenter, AlignRight, AlignJustify, Check } from "lucide-react";
+import { FONT_LABELS, FONT_VARS, LINE_SPACING_VALUES, type FontChoice, type LineSpacing, useEditorPreferences } from "@/lib/editor-preferences";
 import { useTheme } from "@/lib/theme-context";
 import { Stepper } from "@/components/ui/Stepper";
 import { Segmented } from "@/components/ui/Segmented";
@@ -25,8 +25,21 @@ const SWATCHES: Record<"light" | "dark", { value: string; name: string }[]> = {
   ],
 };
 
-const FONT_CHOICES: FontChoice[] = ["serif", "serif-classic", "sans"];
-const FONT_PREVIEW_CLASS: Record<FontChoice, string> = { serif: "font-serif", "serif-classic": "font-serif-classic", sans: "font-sans" };
+// Grouped into sections for a 29-option list — a flat grid stopped making
+// sense once the full Word font list got added alongside the originals.
+const FONT_GROUPS: { label: string; choices: FontChoice[] }[] = [
+  { label: "Plotless", choices: ["serif", "serif-classic", "serif-warm", "serif-reading", "mono", "sans"] },
+  {
+    label: "Word — Serif",
+    choices: ["times-new-roman", "cambria", "georgia", "garamond", "book-antiqua", "bookman-old-style", "palatino", "constantia", "rockwell"],
+  },
+  {
+    label: "Word — Sans",
+    choices: ["calibri", "arial", "segoe-ui", "tahoma", "verdana", "trebuchet-ms", "candara", "corbel", "century-gothic", "franklin-gothic"],
+  },
+  { label: "Word — Mono & Display", choices: ["courier-new", "consolas", "comic-sans", "impact"] },
+];
+
 const ALIGN_OPTIONS = [
   { value: "left", icon: AlignLeft },
   { value: "center", icon: AlignCenter },
@@ -52,18 +65,26 @@ export function TextAppearanceGroup({
   return (
     <div className="space-y-0.5">
       <Accordion id="font" label="Font" open={openAccordion === "font"} onToggle={toggle} value={FONT_LABELS[fontFamily]}>
-        <div className="grid grid-cols-3 gap-2 pb-2">
-          {FONT_CHOICES.map((f) => (
-            <button
-              key={f}
-              onClick={() => setFontFamily(f)}
-              className={`flex flex-col items-center gap-1 rounded-lg border py-2.5 transition-colors ${
-                fontFamily === f ? "border-text" : "border-divider"
-              }`}
-            >
-              <span className={`text-lg ${FONT_PREVIEW_CLASS[f]}`}>Aa</span>
-              <span className="text-[10px] text-text-soft">{FONT_LABELS[f]}</span>
-            </button>
+        <div className="max-h-72 space-y-2.5 overflow-y-auto pb-2 pr-1">
+          {FONT_GROUPS.map((group) => (
+            <div key={group.label}>
+              <div className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-text-soft">{group.label}</div>
+              <div className="space-y-0.5">
+                {group.choices.map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setFontFamily(f)}
+                    style={{ fontFamily: FONT_VARS[f] }}
+                    className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-[15px] transition-colors ${
+                      fontFamily === f ? "bg-active text-text" : "text-text-soft"
+                    }`}
+                  >
+                    {FONT_LABELS[f]}
+                    {fontFamily === f && <Check size={15} strokeWidth={2} />}
+                  </button>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       </Accordion>
@@ -128,4 +149,4 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
       {children}
     </div>
   );
-}
+              }
