@@ -17,6 +17,8 @@ import { useSessionCache } from "@/lib/session-cache";
 import { useWordCountSync } from "@/lib/use-word-count-sync";
 import { Manuscript } from "@/components/editor/Manuscript";
 import { SelectionToolbar } from "@/components/editor/SelectionToolbar";
+import { PresenceAvatars } from "@/components/editor/PresenceAvatars";
+import { SyncStatus } from "@/components/editor/SyncStatus";
 import { BottomSheet } from "@/components/bottom-sheet/BottomSheet";
 import { QuickToolsPopover } from "@/components/quick-tools/QuickToolsPopover";
 import { NavDrawer } from "@/components/navigation/NavDrawer";
@@ -102,6 +104,8 @@ export function EditorView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeChapter?.id, project.id, project.title]);
 
+  // Best-effort restore of scroll position on return to a chapter. Content
+  // itself never needs restoring — Liveblocks resyncs that regardless.
   const scrollRef = useRef<number>(0);
   useEffect(() => {
     const saved = sessionCache.get(activeChapterId)?.scrollTop;
@@ -117,6 +121,8 @@ export function EditorView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeChapterId]);
 
+  // Focus Mode closes the floating surfaces shortly after engaging, same
+  // 240ms grace the prototype gives so the closing animation isn't cut off.
   useEffect(() => {
     if (!focusMode) return;
     const t = setTimeout(() => {
@@ -142,18 +148,24 @@ export function EditorView({
         <button onClick={() => setDrawerOpen(true)} aria-label="Menu" className="rounded-lg p-2.5 text-text active:bg-active">
           <ChevronLeft size={20} strokeWidth={1.6} />
         </button>
-        <span className="truncate text-sm text-text-soft">{activeChapter?.title}</span>
-        <button
-          onClick={() => {
-            setSheetOpen(false);
-            setQtView("main");
-            setQtOpen((v) => !v);
-          }}
-          aria-label="Quick tools"
-          className="rounded-lg p-2.5 text-text active:bg-active"
-        >
-          <Pencil size={19} strokeWidth={1.6} />
-        </button>
+        <div className="flex min-w-0 flex-col items-center leading-tight">
+          <span className="truncate text-sm text-text-soft">{activeChapter?.title}</span>
+          <SyncStatus />
+        </div>
+        <div className="flex items-center gap-1.5">
+          <PresenceAvatars />
+          <button
+            onClick={() => {
+              setSheetOpen(false);
+              setQtView("main");
+              setQtOpen((v) => !v);
+            }}
+            aria-label="Quick tools"
+            className="rounded-lg p-2.5 text-text active:bg-active"
+          >
+            <Pencil size={19} strokeWidth={1.6} />
+          </button>
+        </div>
       </header>
 
       <Manuscript editor={editor} />
@@ -177,7 +189,13 @@ export function EditorView({
         onSwitchChapter={setActiveChapterId}
       />
 
-      <QuickToolsPopover editor={editor} open={qtOpen} onOpenChange={setQtOpen} view={qtView} onViewChange={setQtView} />
+      <QuickToolsPopover
+        editor={editor}
+        open={qtOpen}
+        onOpenChange={setQtOpen}
+        view={qtView}
+        onViewChange={setQtView}
+      />
 
       <NavDrawer open={drawerOpen} onOpenChange={setDrawerOpen} user={user} active="editor" />
     </div>
