@@ -9,7 +9,7 @@ export default async function DashboardPage() {
   const userId = await getSessionUserId();
   if (!userId) redirect("/login?next=/dashboard");
 
-  const [access, ideas, user, stats] = await Promise.all([
+  const [access, ideas, user, stats, invitations] = await Promise.all([
     prisma.projectAccess.findMany({
       where: { userId },
       select: { role: true, project: { include: { chapters: true, access: true } } },
@@ -18,6 +18,18 @@ export default async function DashboardPage() {
     prisma.idea.findMany({ where: { userId }, orderBy: { createdAt: "desc" } }),
     prisma.user.findUnique({ where: { id: userId }, select: { penName: true, avatarUrl: true } }),
     getStreakAndHeatmap(userId),
+    prisma.collaborationRequest.findMany({
+      where: { recipientId: userId, status: "pending" },
+      select: {
+        id: true,
+        role: true,
+        message: true,
+        createdAt: true,
+        project: { select: { id: true, title: true } },
+        initiator: { select: { id: true, penName: true, avatarUrl: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
   ]);
   if (!user) redirect("/login");
 
@@ -27,6 +39,11 @@ export default async function DashboardPage() {
     collaboratorCount: a.project.access.length,
   }));
 
+  // Sum of today's pace across every project that actually has a goal +
+  // deadline set — this is the benchmark the heatmap colors full squares
+  // against. Recomputed from current goals each time, same as the pace
+  // numbers shown elsewhere, rather than tracking a separate historical
+  // target per day.
   const dailyGoalTotal = projects.reduce((sum, p) => {
     const totalWords = p.chapters.reduce((s, c) => s + c.wordCount, 0);
     const pace = computePace(totalWords, p.goalWordCount, p.deadline);
@@ -41,6 +58,7 @@ export default async function DashboardPage() {
       streak={stats.streak}
       heatmap={stats.heatmap}
       dailyGoalTotal={dailyGoalTotal}
+      initialInvitations={invitations}
     />
   );
 }
