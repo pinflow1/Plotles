@@ -7,12 +7,21 @@ import type { Chapter, Idea, Project } from "@prisma/client";
 import { api } from "@/lib/api-client";
 import { formatWordCount } from "@/lib/format";
 import { computePace } from "@/lib/pace";
+import { Avatar } from "@/components/ui/Avatar";
 import { NavDrawer } from "@/components/navigation/NavDrawer";
 import { StreakHeatmap } from "@/components/dashboard/StreakHeatmap";
 import { StoryCard } from "@/components/dashboard/StoryCard";
 
 type ProjectWithChapters = Project & { chapters: Chapter[]; role: "owner" | "edit" | "view"; collaboratorCount: number };
 type HeatmapDay = { date: string; words: number };
+type Invitation = {
+  id: string;
+  role: "edit" | "view";
+  message: string | null;
+  createdAt: string;
+  project: { id: string; title: string };
+  initiator: { id: string; penName: string; avatarUrl: string | null };
+};
 
 export function DashboardView({
   projects,
@@ -21,6 +30,7 @@ export function DashboardView({
   streak,
   heatmap,
   dailyGoalTotal,
+  initialInvitations,
 }: {
   projects: ProjectWithChapters[];
   initialIdeas: Idea[];
@@ -28,12 +38,16 @@ export function DashboardView({
   streak: number;
   heatmap: HeatmapDay[];
   dailyGoalTotal: number;
+  initialInvitations: Invitation[];
 }) {
   const router = useRouter();
   const [ideas, setIdeas] = useState(initialIdeas);
+  const [invitations, setInvitations] = useState(initialInvitations);
+  const [respondingTo, setRespondingTo] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [newIdea, setNewIdea] = useState("");
   const [creating, setCreating] = useState(false);
+  const [addingIdea, setAddingIdea] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const mostRecent = projects[0];
@@ -53,16 +67,35 @@ export function DashboardView({
     }
   }
 
+  async function respondToInvite(id: string, status: "accepted" | "rejected") {
+    setRespondingTo(id);
+    setError(null);
+    try {
+      await api.patch(`/api/collaboration-requests/${id}`, { status });
+      setInvitations((prev) => prev.filter((inv) => inv.id !== id));
+      // Accepting grants access to a project this list doesn't have yet —
+      // pull the fresh server data rather than hand-assembling it here.
+      if (status === "accepted") router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't respond to that invite.");
+    } finally {
+      setRespondingTo(null);
+    }
+  }
+
   async function addIdea(e: React.FormEvent) {
     e.preventDefault();
-    if (!newIdea.trim()) return;
+    if (!newIdea.trim() || addingIdea) return;
     setError(null);
+    setAddingIdea(true);
     try {
       const { idea } = await api.post<{ idea: Idea }>("/api/ideas", { body: newIdea.trim() });
       setIdeas((prev) => [idea, ...prev]);
       setNewIdea("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't save that. Please try again.");
+    } finally {
+      setAddingIdea(false);
     }
   }
 
@@ -83,6 +116,42 @@ export function DashboardView({
 
       <div className="mx-auto max-w-lg px-5">
         {error && <p className="mt-2 text-sm text-text-soft">{error}</p>}
+
+        {invitations.length > 0 && (
+          <section className="mt-2 space-y-2">
+            {invitations.map((inv) => (
+              <div key={inv.id} className="rounded-2xl bg-surface p-4">
+                <div className="flex items-start gap-3">
+                  <Avatar name={inv.initiator.penName} size="sm" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-text">
+                      <span className="font-medium">{inv.initiator.penName}</span> invited you to collaborate on{" "}
+                      <span className="font-medium">{inv.project.title}</span>
+                    </p>
+                    {inv.message && <p className="mt-1 text-sm text-text-soft">“{inv.message}”</p>}
+                    <p className="mt-1 text-xs capitalize text-text-soft">{inv.role} access</p>
+                  </div>
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    onClick={() => respondToInvite(inv.id, "rejected")}
+                    disabled={respondingTo === inv.id}
+                    className="flex-1 rounded-lg bg-active py-1.5 text-xs font-medium text-text disabled:opacity-60"
+                  >
+                    Decline
+                  </button>
+                  <button
+                    onClick={() => respondToInvite(inv.id, "accepted")}
+                    disabled={respondingTo === inv.id}
+                    className="flex-1 rounded-lg bg-strong py-1.5 text-xs font-semibold text-on-strong disabled:opacity-60"
+                  >
+                    {respondingTo === inv.id ? "Joining…" : "Accept"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </section>
+        )}
 
         <StreakHeatmap streak={streak} heatmap={heatmap} dailyGoalTotal={dailyGoalTotal} />
 
@@ -137,13 +206,21 @@ export function DashboardView({
         )}
 
         <div className="mb-3 mt-8 text-xs uppercase tracking-[0.08em] text-text-soft">Ideas</div>
-        <form onSubmit={addIdea} className="mb-2">
+        <form onSubmit={addIdea} className="mb-2 flex gap-2">
           <input
             value={newIdea}
             onChange={(e) => setNewIdea(e.target.value)}
             placeholder="Jot something down…"
-            className="w-full rounded-xl border border-divider bg-transparent px-3 py-2 text-sm text-text-soft outline-none focus-visible:border-text"
+            className="w-full flex-1 rounded-xl border border-divider bg-transparent px-3 py-2 text-sm text-text outline-none placeholder:text-text-soft focus-visible:border-text"
           />
+          <button
+            type="submit"
+            disabled={!newIdea.trim() || addingIdea}
+            aria-label="Add idea"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-strong text-on-strong disabled:opacity-40"
+          >
+            <Plus size={16} strokeWidth={2} />
+          </button>
         </form>
         <div className="space-y-1">
           {ideas.map((idea) => (
@@ -160,4 +237,4 @@ export function DashboardView({
       <NavDrawer open={drawerOpen} onOpenChange={setDrawerOpen} user={user} active="dashboard" />
     </div>
   );
-                }
+                  }
