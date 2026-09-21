@@ -1,0 +1,133 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String          @id @default(cuid())
+  email          String          @unique
+  penName        String
+  hashedPassword String
+  avatarUrl      String?
+  bio            String?
+  genres         String[]        @default([])
+  interests      String[]        @default([])
+  createdAt      DateTime        @default(now())
+  access         ProjectAccess[]
+  ideas          Idea[]
+  logs           WritingLog[]
+  sentRequests     CollaborationRequest[] @relation("SentCollaborationRequests")
+  receivedRequests CollaborationRequest[] @relation("ReceivedCollaborationRequests")
+}
+
+model Project {
+  id            String          @id @default(cuid())
+  title         String
+  description   String?
+  coverUrl      String?
+  ownerId       String
+  goalWordCount Int?
+  deadline      DateTime?
+  status        ProjectStatus   @default(drafting)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  chapters      Chapter[]
+  access        ProjectAccess[]
+  ideas         Idea[]
+  logs          WritingLog[]
+  collaborationRequests CollaborationRequest[]
+}
+
+enum ProjectStatus {
+  planning
+  drafting
+  revising
+  complete
+}
+
+// One row per user, per project, per calendar day — the running total for
+// that day gets incremented as the chapter's word count changes, so streaks
+// and the heatmap are built from real deltas rather than a point-in-time
+// snapshot.
+model WritingLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date
+  words     Int      @default(0)
+
+  @@unique([userId, projectId, date])
+}
+
+model Chapter {
+  id         String   @id @default(cuid())
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title      String   @default("Untitled Chapter")
+  orderIndex Int      @default(0)
+  wordCount  Int      @default(0)
+  updatedAt  DateTime @updatedAt
+}
+
+enum CollaboratorRole {
+  owner
+  edit
+  view
+}
+
+model ProjectAccess {
+  id        String           @id @default(cuid())
+  projectId String
+  project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      CollaboratorRole @default(view)
+
+  @@unique([projectId, userId])
+}
+
+enum CollaborationRequestStatus {
+  pending
+  accepted
+  rejected
+}
+
+// A pending offer to collaborate, not an instant grant — accepting one is
+// what actually creates the ProjectAccess row. Today the only way to
+// create one of these is the owner inviting someone by email (below), so
+// the owner is the initiator and the invited writer is the recipient —
+// but the naming doesn't assume that direction: once project-level
+// discovery exists, a writer-initiated request just swaps who's who and
+// slots into the same status/accept flow.
+model CollaborationRequest {
+  id          String                      @id @default(cuid())
+  projectId   String
+  project     Project                     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  initiatorId String
+  initiator   User                        @relation("SentCollaborationRequests", fields: [initiatorId], references: [id], onDelete: Cascade)
+  recipientId String
+  recipient   User                        @relation("ReceivedCollaborationRequests", fields: [recipientId], references: [id], onDelete: Cascade)
+  role        CollaboratorRole            @default(view)
+  message     String?
+  status      CollaborationRequestStatus  @default(pending)
+  createdAt   DateTime                    @default(now())
+  respondedAt DateTime?
+
+  @@unique([projectId, recipientId, status])
+}
+
+model Idea {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  body      String
+  createdAt DateTime @default(now())
+}
