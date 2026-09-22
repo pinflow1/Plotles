@@ -50,6 +50,12 @@ export default async function DashboardPage() {
     return sum + (pace?.dailyTarget ?? 0);
   }, 0);
 
+  // CollaborationRequest.role reuses the same CollaboratorRole enum as
+  // ProjectAccess (owner/edit/view), but POST /api/projects/[id]/collaborators
+  // only ever creates one with edit or view — owner isn't a real
+  // possibility here, just not split into its own narrower schema enum yet.
+  const pendingInvitations = invitations.map((inv) => ({ ...inv, role: inv.role as "edit" | "view" }));
+
   return (
     <DashboardView
       projects={projects}
@@ -58,7 +64,7 @@ export default async function DashboardPage() {
       streak={stats.streak}
       heatmap={stats.heatmap}
       dailyGoalTotal={dailyGoalTotal}
-      initialInvitations={invitations}
+      initialInvitations={pendingInvitations}
     />
   );
 }
