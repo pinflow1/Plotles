@@ -18,7 +18,7 @@ type Invitation = {
   id: string;
   role: "edit" | "view";
   message: string | null;
-  createdAt: string;
+  createdAt: Date;
   project: { id: string; title: string };
   initiator: { id: string; penName: string; avatarUrl: string | null };
 };
@@ -237,4 +237,4 @@ export function DashboardView({
       <NavDrawer open={drawerOpen} onOpenChange={setDrawerOpen} user={user} active="dashboard" />
     </div>
   );
-                  }
+}
