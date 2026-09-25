@@ -145,7 +145,15 @@ export function EditorView({
           focusMode ? "pointer-events-none opacity-0" : "opacity-100"
         }`}
       >
-        <button onClick={() => setDrawerOpen(true)} aria-label="Menu" className="rounded-lg p-2.5 text-text active:bg-active">
+        <button
+          onClick={() => {
+            setQtOpen(false);
+            setSheetOpen(false);
+            setDrawerOpen(true);
+          }}
+          aria-label="Menu"
+          className="rounded-lg p-2.5 text-text active:bg-active"
+        >
           <ChevronLeft size={20} strokeWidth={1.6} />
         </button>
         <div className="flex min-w-0 flex-col items-center leading-tight">
@@ -157,6 +165,7 @@ export function EditorView({
           <button
             onClick={() => {
               setSheetOpen(false);
+              setDrawerOpen(false);
               setQtView("main");
               setQtOpen((v) => !v);
             }}
@@ -177,7 +186,10 @@ export function EditorView({
         open={sheetOpen}
         onOpenChange={(v) => {
           setSheetOpen(v);
-          if (v) setQtOpen(false);
+          if (v) {
+            setQtOpen(false);
+            setDrawerOpen(false);
+          }
         }}
         onFind={openFindInQuickTools}
         projectId={project.id}
@@ -200,4 +212,4 @@ export function EditorView({
       <NavDrawer open={drawerOpen} onOpenChange={setDrawerOpen} user={user} active="editor" />
     </div>
   );
-}
+        }
