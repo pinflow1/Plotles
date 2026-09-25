@@ -43,6 +43,7 @@ export function ProjectView({
   const [draftGoal, setDraftGoal] = useState(project.goalWordCount ? String(project.goalWordCount) : "");
   const [draftDeadline, setDraftDeadline] = useState(toDateInputValue(project.deadline));
   const [busy, setBusy] = useState(false);
+  const [panelError, setPanelError] = useState<string | null>(null);
   const [coverBusy, setCoverBusy] = useState(false);
   const [coverError, setCoverError] = useState<string | null>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
@@ -55,6 +56,12 @@ export function ProjectView({
 
   function close() {
     setPanel(null);
+    setPanelError(null);
+  }
+
+  function togglePanel(p: Exclude<Panel, null>) {
+    setPanelError(null);
+    setPanel((prev) => (prev === p ? null : p));
   }
 
   function goToChapter(chapterId: string) {
@@ -84,26 +91,33 @@ export function ProjectView({
 
   async function saveDetails() {
     const title = draftTitle.trim();
-    close();
     if (!title) {
       setDraftTitle(project.title);
+      close();
       return;
     }
     setBusy(true);
+    setPanelError(null);
     try {
       await api.patch(`/api/projects/${project.id}`, { title, description: draftDescription.trim() || null });
       setProject((prev) => ({ ...prev, title, description: draftDescription.trim() || null }));
+      close();
+    } catch (err) {
+      setPanelError(err instanceof Error ? err.message : "Couldn't save those details.");
     } finally {
       setBusy(false);
     }
   }
 
   async function setStatus(status: ProjectStatus) {
-    close();
     setBusy(true);
+    setPanelError(null);
     try {
       await api.patch(`/api/projects/${project.id}`, { status });
       setProject((prev) => ({ ...prev, status }));
+      close();
+    } catch (err) {
+      setPanelError(err instanceof Error ? err.message : "Couldn't update the status.");
     } finally {
       setBusy(false);
     }
@@ -112,11 +126,14 @@ export function ProjectView({
   async function saveGoal() {
     const goalWordCount = draftGoal.trim() ? Math.max(0, parseInt(draftGoal, 10)) : null;
     const deadline = draftDeadline || null;
-    close();
     setBusy(true);
+    setPanelError(null);
     try {
       await api.patch(`/api/projects/${project.id}`, { goalWordCount, deadline });
       setProject((prev) => ({ ...prev, goalWordCount, deadline: deadline ? new Date(deadline) : null }));
+      close();
+    } catch (err) {
+      setPanelError(err instanceof Error ? err.message : "Couldn't save the goal.");
     } finally {
       setBusy(false);
     }
@@ -124,10 +141,12 @@ export function ProjectView({
 
   async function confirmDelete() {
     setBusy(true);
+    setPanelError(null);
     try {
       await api.delete(`/api/projects/${project.id}`);
       router.replace("/dashboard");
-    } finally {
+    } catch (err) {
+      setPanelError(err instanceof Error ? err.message : "Couldn't delete this project.");
       setBusy(false);
     }
   }
@@ -137,7 +156,14 @@ export function ProjectView({
       <input ref={coverInputRef} type="file" accept="image/*" onChange={onCoverSelected} className="hidden" />
 
       <header className="flex items-center justify-between px-4 py-3">
-        <button onClick={() => setDrawerOpen(true)} aria-label="Menu" className="rounded-lg p-2.5 text-text active:bg-active">
+        <button
+          onClick={() => {
+            close();
+            setDrawerOpen(true);
+          }}
+          aria-label="Menu"
+          className="rounded-lg p-2.5 text-text active:bg-active"
+        >
           <ChevronLeft size={20} strokeWidth={1.6} />
         </button>
         <span className="truncate text-sm text-text-soft">{project.title}</span>
@@ -218,9 +244,9 @@ export function ProjectView({
         <div className="mt-8">
           <div className="mb-2 text-xs uppercase tracking-[0.08em] text-text-soft">Project</div>
           <div className="rounded-2xl bg-surface">
-            {canEdit && <ActionRow icon={Info} label="Details" onClick={() => setPanel(panel === "details" ? null : "details")} />}
-            {canEdit && <ActionRow icon={Flag} label="Status" value={STATUS_LABELS[project.status]} onClick={() => setPanel(panel === "status" ? null : "status")} />}
-            {canEdit && <ActionRow icon={Target} label="Goal" onClick={() => setPanel(panel === "goal" ? null : "goal")} />}
+            {canEdit && <ActionRow icon={Info} label="Details" onClick={() => togglePanel("details")} />}
+            {canEdit && <ActionRow icon={Flag} label="Status" value={STATUS_LABELS[project.status]} onClick={() => togglePanel("status")} />}
+            {canEdit && <ActionRow icon={Target} label="Goal" onClick={() => togglePanel("goal")} />}
             {canEdit && (
               <ActionRow
                 icon={ImageIcon}
@@ -230,8 +256,8 @@ export function ProjectView({
               />
             )}
             <ActionRow icon={Download} label="Export" value="Coming soon" disabled onClick={() => {}} />
-            <ActionRow icon={Users} label="Collaborators" onClick={() => setPanel(panel === "collaborators" ? null : "collaborators")} last={project.role !== "owner"} />
-            {project.role === "owner" && <ActionRow icon={Trash2} label="Delete Project" onClick={() => setPanel(panel === "delete" ? null : "delete")} last />}
+            <ActionRow icon={Users} label="Collaborators" onClick={() => togglePanel("collaborators")} last={project.role !== "owner"} />
+            {project.role === "owner" && <ActionRow icon={Trash2} label="Delete Project" onClick={() => togglePanel("delete")} last />}
           </div>
 
           {panel === "details" && (
@@ -249,28 +275,33 @@ export function ProjectView({
                 rows={3}
                 className="w-full resize-none rounded-lg border border-divider bg-transparent px-3 py-2 text-sm text-text outline-none"
               />
+              {panelError && <p className="text-xs text-text-soft">{panelError}</p>}
               <div className="flex gap-2">
                 <button onClick={close} className="flex-1 rounded-lg bg-active py-1.5 text-xs font-medium text-text">
                   Cancel
                 </button>
-                <button onClick={saveDetails} className="flex-1 rounded-lg bg-strong py-1.5 text-xs font-semibold text-on-strong">
-                  Save
+                <button onClick={saveDetails} disabled={busy} className="flex-1 rounded-lg bg-strong py-1.5 text-xs font-semibold text-on-strong disabled:opacity-60">
+                  {busy ? "Saving…" : "Save"}
                 </button>
               </div>
             </div>
           )}
 
           {panel === "status" && (
-            <div className="mt-2 flex flex-wrap gap-2 rounded-2xl bg-surface p-4">
-              {(Object.keys(STATUS_LABELS) as ProjectStatus[]).map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setStatus(s)}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-medium ${s === project.status ? "bg-strong text-on-strong" : "bg-active text-text"}`}
-                >
-                  {STATUS_LABELS[s]}
-                </button>
-              ))}
+            <div className="mt-2 rounded-2xl bg-surface p-4">
+              <div className="flex flex-wrap gap-2">
+                {(Object.keys(STATUS_LABELS) as ProjectStatus[]).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setStatus(s)}
+                    disabled={busy}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-60 ${s === project.status ? "bg-strong text-on-strong" : "bg-active text-text"}`}
+                  >
+                    {STATUS_LABELS[s]}
+                  </button>
+                ))}
+              </div>
+              {panelError && <p className="mt-2 text-xs text-text-soft">{panelError}</p>}
             </div>
           )}
 
@@ -293,12 +324,13 @@ export function ProjectView({
                   className="w-1/2 rounded-lg border border-divider bg-transparent px-2 py-1.5 text-sm text-text outline-none"
                 />
               </div>
+              {panelError && <p className="text-xs text-text-soft">{panelError}</p>}
               <div className="flex gap-2">
                 <button onClick={close} className="flex-1 rounded-lg bg-active py-1.5 text-xs font-medium text-text">
                   Cancel
                 </button>
-                <button onClick={saveGoal} className="flex-1 rounded-lg bg-strong py-1.5 text-xs font-semibold text-on-strong">
-                  Save
+                <button onClick={saveGoal} disabled={busy} className="flex-1 rounded-lg bg-strong py-1.5 text-xs font-semibold text-on-strong disabled:opacity-60">
+                  {busy ? "Saving…" : "Save"}
                 </button>
               </div>
             </div>
@@ -313,6 +345,7 @@ export function ProjectView({
           {panel === "delete" && (
             <div className="mt-2 rounded-2xl bg-surface p-4">
               <p className="mb-2 text-xs text-text-soft">Delete “{project.title}”? This permanently removes it for every collaborator — there&rsquo;s no undo.</p>
+              {panelError && <p className="mb-2 text-xs text-text-soft">{panelError}</p>}
               <div className="flex gap-2">
                 <button onClick={close} className="flex-1 rounded-lg bg-active py-1.5 text-xs font-medium text-text">
                   Cancel
@@ -359,4 +392,4 @@ function ActionRow({
       {value && <span className="text-xs text-text-soft">{value}</span>}
     </button>
   );
-      }
+}
