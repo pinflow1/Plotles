@@ -19,7 +19,7 @@ const config: Config = {
           soft: "#8E8E8E",
         },
         deep: "#111111",
-        paper: "rgb(var(--paper-rgb) / <alpha-value>)",
+        paper: "var(--paper)",
         surface: "var(--surface)",
         text: {
           DEFAULT: "var(--text)",
@@ -33,6 +33,7 @@ const config: Config = {
       },
       fontFamily: {
         serif: ["var(--font-fraunces)", "Iowan Old Style", "Palatino Linotype", "Georgia", "Times New Roman", "serif"],
+        "serif-classic": ["var(--font-source-serif)", "Iowan Old Style", "Georgia", "serif"],
         sans: [
           "-apple-system",
           "BlinkMacSystemFont",
