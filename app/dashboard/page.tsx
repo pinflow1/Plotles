@@ -9,7 +9,7 @@ export default async function DashboardPage() {
   const userId = await getSessionUserId();
   if (!userId) redirect("/login?next=/dashboard");
 
-  const [access, ideas, user, stats, invitations] = await Promise.all([
+  const [access, ideas, user, stats] = await Promise.all([
     prisma.projectAccess.findMany({
       where: { userId },
       select: { role: true, project: { include: { chapters: true, access: true } } },
@@ -18,18 +18,6 @@ export default async function DashboardPage() {
     prisma.idea.findMany({ where: { userId }, orderBy: { createdAt: "desc" } }),
     prisma.user.findUnique({ where: { id: userId }, select: { penName: true, avatarUrl: true } }),
     getStreakAndHeatmap(userId),
-    prisma.collaborationRequest.findMany({
-      where: { recipientId: userId, status: "pending" },
-      select: {
-        id: true,
-        role: true,
-        message: true,
-        createdAt: true,
-        project: { select: { id: true, title: true } },
-        initiator: { select: { id: true, penName: true, avatarUrl: true } },
-      },
-      orderBy: { createdAt: "desc" },
-    }),
   ]);
   if (!user) redirect("/login");
 
@@ -50,12 +38,6 @@ export default async function DashboardPage() {
     return sum + (pace?.dailyTarget ?? 0);
   }, 0);
 
-  // CollaborationRequest.role reuses the same CollaboratorRole enum as
-  // ProjectAccess (owner/edit/view), but POST /api/projects/[id]/collaborators
-  // only ever creates one with edit or view — owner isn't a real
-  // possibility here, just not split into its own narrower schema enum yet.
-  const pendingInvitations = invitations.map((inv) => ({ ...inv, role: inv.role as "edit" | "view" }));
-
   return (
     <DashboardView
       projects={projects}
@@ -64,7 +46,6 @@ export default async function DashboardPage() {
       streak={stats.streak}
       heatmap={stats.heatmap}
       dailyGoalTotal={dailyGoalTotal}
-      initialInvitations={pendingInvitations}
     />
   );
 }
