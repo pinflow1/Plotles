@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { getProjectRole } from "@/lib/access";
-import { getLiveblocksClient } from "@/lib/liveblocks";
+import { authorizeLiveblocksUser } from "@/lib/liveblocks";
 
 export async function POST(req: NextRequest) {
   const userId = await getSessionUserId();
@@ -24,16 +24,15 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
   try {
-    const liveblocks = getLiveblocksClient();
-    const session = liveblocks.prepareSession(userId, {
-      userInfo: { name: user.penName, avatar: user.avatarUrl ?? undefined },
+    const { token } = await authorizeLiveblocksUser({
+      userId,
+      userInfo: { name: user.penName, avatar: user.avatarUrl },
+      room,
+      permission: role === "view" ? "room:read" : "room:write",
     });
-    session.allow(room, role === "view" ? ["room:read"] : ["room:write"]);
-
-    const { status, body: responseBody } = await session.authorize();
-    return new NextResponse(responseBody, { status });
+    return NextResponse.json({ token });
   } catch (err) {
-    console.error("POST /api/liveblocks-auth failed:", err);
+    console.error(err);
     return NextResponse.json({ error: "Couldn't authorize the collaboration session." }, { status: 502 });
   }
 }
