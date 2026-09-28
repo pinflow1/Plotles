@@ -33,23 +33,7 @@ function Row({ label, value, onClick }: { label: string; value?: React.ReactNode
   );
 }
 
-type Profile = { bio: string | null; genres: string[]; interests: string[] };
-
-// Comma list in, trimmed array out — kept as plain text input rather than
-// a tag picker, per "lightweight, not a social platform."
-function parseList(v: string): string[] {
-  return v
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .slice(0, 10);
-}
-
-export function SettingsView({
-  user,
-}: {
-  user: { penName: string; email: string; avatarUrl: string | null } & Profile;
-}) {
+export function SettingsView({ user }: { user: { penName: string; email: string; avatarUrl: string | null } }) {
   const router = useRouter();
   const { fontFamily, textSize } = useEditorPreferences();
   const { mode, setMode } = useTheme();
@@ -58,39 +42,6 @@ export function SettingsView({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
-
-  const [profile, setProfile] = useState<Profile>({ bio: user.bio, genres: user.genres, interests: user.interests });
-  const [editingProfile, setEditingProfile] = useState(false);
-  const [draftBio, setDraftBio] = useState(profile.bio ?? "");
-  const [draftGenres, setDraftGenres] = useState(profile.genres.join(", "));
-  const [draftInterests, setDraftInterests] = useState(profile.interests.join(", "));
-  const [profileBusy, setProfileBusy] = useState(false);
-  const [profileError, setProfileError] = useState<string | null>(null);
-
-  function openProfileEditor() {
-    setDraftBio(profile.bio ?? "");
-    setDraftGenres(profile.genres.join(", "));
-    setDraftInterests(profile.interests.join(", "));
-    setProfileError(null);
-    setEditingProfile(true);
-  }
-
-  async function saveProfile() {
-    setProfileBusy(true);
-    setProfileError(null);
-    const bio = draftBio.trim() || null;
-    const genres = parseList(draftGenres);
-    const interests = parseList(draftInterests);
-    try {
-      await api.patch("/api/auth/me", { bio, genres, interests });
-      setProfile({ bio, genres, interests });
-      setEditingProfile(false);
-    } catch (err) {
-      setProfileError(err instanceof Error ? err.message : "Couldn't save your profile.");
-    } finally {
-      setProfileBusy(false);
-    }
-  }
 
   async function signOut() {
     await api.post("/api/auth/logout");
@@ -140,67 +91,6 @@ export function SettingsView({
               ]}
             />
           </div>
-        </Section>
-
-        <Section label="Writer Profile">
-          {/* Shown to people you're deciding whether to invite or accept
-              a request from — lightweight on purpose, not a full profile
-              page. */}
-          {!editingProfile ? (
-            <>
-              <Row label="Bio" value={profile.bio || "Not set"} onClick={openProfileEditor} />
-              <Row label="Genres" value={profile.genres.length ? profile.genres.join(", ") : "Not set"} onClick={openProfileEditor} />
-              <Row label="Interests" value={profile.interests.length ? profile.interests.join(", ") : "Not set"} onClick={openProfileEditor} />
-            </>
-          ) : (
-            <div className="space-y-3 px-4 py-3">
-              <label className="block">
-                <span className="text-xs font-semibold uppercase tracking-wide text-text-soft">Bio</span>
-                <textarea
-                  value={draftBio}
-                  onChange={(e) => setDraftBio(e.target.value)}
-                  rows={3}
-                  maxLength={280}
-                  placeholder="A couple of sentences about you as a writer"
-                  className="mt-1.5 w-full resize-none rounded-lg bg-active px-3 py-2 text-sm text-text outline-none placeholder:text-text-soft"
-                />
-              </label>
-              <label className="block">
-                <span className="text-xs font-semibold uppercase tracking-wide text-text-soft">Genres</span>
-                <input
-                  value={draftGenres}
-                  onChange={(e) => setDraftGenres(e.target.value)}
-                  placeholder="Fantasy, Mystery, Dark Fiction"
-                  className="mt-1.5 w-full rounded-lg bg-active px-3 py-2 text-sm text-text outline-none placeholder:text-text-soft"
-                />
-              </label>
-              <label className="block">
-                <span className="text-xs font-semibold uppercase tracking-wide text-text-soft">Interests</span>
-                <input
-                  value={draftInterests}
-                  onChange={(e) => setDraftInterests(e.target.value)}
-                  placeholder="Character development, World building"
-                  className="mt-1.5 w-full rounded-lg bg-active px-3 py-2 text-sm text-text outline-none placeholder:text-text-soft"
-                />
-              </label>
-              {profileError && <p className="text-xs text-text-soft">{profileError}</p>}
-              <div className="flex gap-2 pt-1">
-                <button
-                  onClick={() => setEditingProfile(false)}
-                  className="flex-1 rounded-lg bg-active py-1.5 text-xs font-medium text-text"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={saveProfile}
-                  disabled={profileBusy}
-                  className="flex-1 rounded-lg bg-strong py-1.5 text-xs font-semibold text-on-strong disabled:opacity-60"
-                >
-                  {profileBusy ? "Saving…" : "Save"}
-                </button>
-              </div>
-            </div>
-          )}
         </Section>
 
         {current ? (
