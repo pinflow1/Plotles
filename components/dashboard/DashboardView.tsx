@@ -33,7 +33,6 @@ export function DashboardView({
   const [ideas, setIdeas] = useState(initialIdeas);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [newIdea, setNewIdea] = useState("");
-  const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const mostRecent = projects[0];
@@ -41,16 +40,8 @@ export function DashboardView({
   const mostRecentTotalWords = mostRecent?.chapters.reduce((sum, c) => sum + c.wordCount, 0) ?? 0;
   const heroPace = mostRecent ? computePace(mostRecentTotalWords, mostRecent.goalWordCount, mostRecent.deadline) : null;
 
-  async function newStory() {
-    setCreating(true);
-    setError(null);
-    try {
-      const { project } = await api.post<{ project: ProjectWithChapters }>("/api/projects", { title: "Untitled Story" });
-      router.push(`/editor/${project.id}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't start a new story. Please try again.");
-      setCreating(false);
-    }
+  function newStory() {
+    router.push("/projects/new");
   }
 
   async function addIdea(e: React.FormEvent) {
@@ -120,7 +111,7 @@ export function DashboardView({
 
         <div className="mb-3 mt-8 flex items-center justify-between">
           <span className="text-xs uppercase tracking-[0.08em] text-text-soft">Your Stories</span>
-          <button onClick={newStory} disabled={creating} className="flex items-center gap-1 text-sm text-text disabled:opacity-50">
+          <button onClick={newStory} className="flex items-center gap-1 text-sm text-text disabled:opacity-50">
             <Plus size={14} strokeWidth={2} />
             New Story
           </button>
