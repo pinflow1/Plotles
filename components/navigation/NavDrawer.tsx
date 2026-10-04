@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Home, Library, NotebookPen, Settings as SettingsIcon } from "lucide-react";
+import { Home, Library, NotebookPen, Settings as SettingsIcon, Users } from "lucide-react";
 import { useDragSheet } from "@/lib/use-drag-sheet";
 import { useSessionCache } from "@/lib/session-cache";
 import { Avatar } from "@/components/ui/Avatar";
@@ -11,7 +11,7 @@ type NavDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   user: { penName: string; avatarUrl: string | null };
-  active: "dashboard" | "project" | "editor" | "settings";
+  active: "dashboard" | "project" | "editor" | "settings" | "collaborate";
 };
 
 export function NavDrawer({ open, onOpenChange, user, active }: NavDrawerProps) {
@@ -36,7 +36,7 @@ export function NavDrawer({ open, onOpenChange, user, active }: NavDrawerProps) 
     if (!current) return;
     const editorPath = `/editor/${current.projectId}`;
     if (pathname === editorPath) {
-      setOpen(false);
+      setOpen(false); // already there — closing the drawer is the whole action, no reload
       return;
     }
     go(editorPath);
@@ -50,6 +50,7 @@ export function NavDrawer({ open, onOpenChange, user, active }: NavDrawerProps) 
         className="pointer-events-none fixed inset-0 z-40 bg-overlay opacity-0"
         aria-hidden="true"
       />
+      {/* Left-edge strip that catches the opening swipe, present on every screen this drawer serves. */}
       <div
         onPointerDown={startDrag}
         className="fixed inset-y-0 left-0 z-40 w-5 touch-none"
@@ -87,6 +88,7 @@ export function NavDrawer({ open, onOpenChange, user, active }: NavDrawerProps) 
         <nav className="flex flex-col px-3">
           <DrawerItem icon={Home} label="Dashboard" activeItem={active === "dashboard"} onClick={() => go("/dashboard")} />
           <DrawerItem icon={Library} label="Projects" activeItem={false} onClick={() => go("/dashboard")} />
+          <DrawerItem icon={Users} label="Collaborate" activeItem={active === "collaborate"} onClick={() => go("/collaborate")} />
           <DrawerItem
             icon={NotebookPen}
             label="Current Chapter"
@@ -126,4 +128,4 @@ function DrawerItem({
       {label}
     </button>
   );
-  }
+}
