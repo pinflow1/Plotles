@@ -31,6 +31,8 @@ export function CreateStoryView() {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [genres, setGenres] = useState("");
+  const [lookingFor, setLookingFor] = useState("");
   const [mode, setMode] = useState<Mode>("solo");
   const [cap, setCap] = useState(5);
   const [useCap, setUseCap] = useState(false);
@@ -102,6 +104,8 @@ export function CreateStoryView() {
       const { project } = await api.post<{ project: { id: string } }>("/api/projects", {
         title: title.trim(),
         description: description.trim() || undefined,
+        genres: genres.split(",").map((g) => g.trim()).filter(Boolean).slice(0, 10),
+        lookingFor: lookingFor.trim() || undefined,
         collaborationMode: mode,
         maxParticipants: HAS_CAP(mode) && useCap ? cap : undefined,
         participantUserIds: picked.map((p) => p.id),
@@ -145,6 +149,16 @@ export function CreateStoryView() {
           />
         </label>
 
+        <label className="block">
+          <span className="text-xs font-semibold uppercase tracking-wide text-text-soft">Genres</span>
+          <input
+            value={genres}
+            onChange={(e) => setGenres(e.target.value)}
+            placeholder="Mystery, Thriller"
+            className="mt-1.5 w-full rounded-lg bg-active px-3 py-2 text-sm text-text outline-none placeholder:text-text-soft"
+          />
+        </label>
+
         <div>
           <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-soft">How do you want to write?</div>
           <div className="overflow-hidden rounded-2xl bg-surface">
@@ -165,6 +179,18 @@ export function CreateStoryView() {
             ))}
           </div>
         </div>
+
+        {(mode === "public" || mode === "public_anonymous") && (
+          <label className="block">
+            <span className="text-xs font-semibold uppercase tracking-wide text-text-soft">Looking for (optional)</span>
+            <input
+              value={lookingFor}
+              onChange={(e) => setLookingFor(e.target.value)}
+              placeholder="A writer with a different perspective"
+              className="mt-1.5 w-full rounded-lg bg-active px-3 py-2 text-sm text-text outline-none placeholder:text-text-soft"
+            />
+          </label>
+        )}
 
         {mode === "anonymous_duo" && (
           <p className="text-xs text-text-soft">
@@ -244,4 +270,5 @@ export function CreateStoryView() {
       </div>
     </div>
   );
-}
+            }
+        
