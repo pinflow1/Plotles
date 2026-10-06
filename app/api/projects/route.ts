@@ -67,6 +67,8 @@ export async function POST(req: NextRequest) {
         data: {
           title,
           description: typeof body?.description === "string" ? body.description : null,
+          genres: Array.isArray(body?.genres) ? body.genres.filter((g: unknown) => typeof g === "string" && g.trim()).slice(0, 10) : [],
+          lookingFor: typeof body?.lookingFor === "string" && body.lookingFor.trim() ? body.lookingFor.trim().slice(0, 140) : null,
           ownerId: userId,
           collaborationMode,
           maxParticipants,
