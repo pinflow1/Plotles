@@ -8,14 +8,30 @@ import { NavDrawer } from "@/components/navigation/NavDrawer";
 
 type Tab = "writers" | "stories";
 type Writer = { id: string; penName: string; avatarUrl: string | null; bio: string | null; genres: string[]; interests: string[] };
+type DiscoverProject = {
+  id: string;
+  title: string;
+  description: string | null;
+  genres: string[];
+  lookingFor: string | null;
+  collaborationMode: "public" | "public_anonymous";
+  participantCount: number;
+  maxParticipants: number | null;
+  alreadyRequested: boolean;
+};
 
 export function CollaborateView({ user }: { user: { penName: string; avatarUrl: string | null } }) {
   const [tab, setTab] = useState<Tab>("writers");
   const [drawerOpen, setDrawerOpen] = useState(false);
+
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Writer[]>([]);
   const [searched, setSearched] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [stories, setStories] = useState<DiscoverProject[] | null>(null);
+  const [requesting, setRequesting] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -38,6 +54,27 @@ export function CollaborateView({ user }: { user: { penName: string; avatarUrl: 
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [query]);
+
+  useEffect(() => {
+    if (tab !== "stories" || stories !== null) return;
+    api
+      .get<{ projects: DiscoverProject[] }>("/api/projects/discover")
+      .then((r) => setStories(r.projects))
+      .catch((err) => setError(err instanceof Error ? err.message : "Couldn't load open stories."));
+  }, [tab, stories]);
+
+  async function requestToJoin(projectId: string) {
+    setRequesting(projectId);
+    setError(null);
+    try {
+      await api.post(`/api/projects/${projectId}/request-to-join`, {});
+      setStories((prev) => prev?.map((p) => (p.id === projectId ? { ...p, alreadyRequested: true } : p)) ?? null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't send that request.");
+    } finally {
+      setRequesting(null);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-paper pb-16 pt-[env(safe-area-inset-top)]">
@@ -64,6 +101,8 @@ export function CollaborateView({ user }: { user: { penName: string; avatarUrl: 
             Find Stories
           </button>
         </div>
+
+        {error && <p className="mb-3 px-1 text-sm text-text-soft">{error}</p>}
 
         {tab === "writers" ? (
           <div>
@@ -102,13 +141,38 @@ export function CollaborateView({ user }: { user: { penName: string; avatarUrl: 
               </div>
             )}
           </div>
+        ) : stories === null ? (
+          <p className="px-1 text-sm text-text-soft">Loading…</p>
+        ) : stories.length === 0 ? (
+          <p className="px-1 text-sm text-text-soft">No open stories right now — check back later.</p>
         ) : (
-          <p className="px-1 text-sm text-text-soft">Find Stories is coming next — browsing open public collaborations to request to join.</p>
+          <div className="space-y-2">
+            {stories.map((p) => (
+              <div key={p.id} className="rounded-2xl bg-surface p-4">
+                <div className="font-serif text-lg text-text">{p.title}</div>
+                {p.genres.length > 0 && <div className="mt-0.5 text-xs text-text-soft">{p.genres.join(" · ")}</div>}
+                {p.description && <p className="mt-2 text-sm text-text-soft">{p.description}</p>}
+                {p.lookingFor && <p className="mt-2 text-sm text-text">Looking for: {p.lookingFor}</p>}
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-xs text-text-soft">
+                    {p.maxParticipants ? `${p.participantCount} / ${p.maxParticipants} collaborators` : `${p.participantCount} collaborator${p.participantCount === 1 ? "" : "s"}`}
+                    {p.collaborationMode === "public_anonymous" && " · anonymous"}
+                  </span>
+                  <button
+                    onClick={() => requestToJoin(p.id)}
+                    disabled={p.alreadyRequested || requesting === p.id}
+                    className="rounded-lg bg-strong px-3 py-1.5 text-xs font-semibold text-on-strong disabled:opacity-50"
+                  >
+                    {p.alreadyRequested ? "Requested" : requesting === p.id ? "Sending…" : "Request to Join"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
       <NavDrawer open={drawerOpen} onOpenChange={setDrawerOpen} user={user} active="collaborate" />
     </div>
   );
-        }
-    
+}
