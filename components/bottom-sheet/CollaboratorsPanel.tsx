@@ -15,10 +15,19 @@ type PendingRequest = {
   recipient: { id: string; penName: string; avatarUrl: string | null };
 };
 type Person = { id: string; penName: string; avatarUrl: string | null; bio: string | null; genres: string[] };
+type IncomingRequest = {
+  id: string;
+  role: "edit" | "view";
+  message: string | null;
+  createdAt: string;
+  initiator: { id: string; penName: string; avatarUrl: string | null; bio: string | null; genres: string[] };
+};
 
 export function CollaboratorsPanel({ projectId, isOwner, onBack }: { projectId: string; isOwner: boolean; onBack?: () => void }) {
   const [collaborators, setCollaborators] = useState<Collaborator[] | null>(null);
   const [pending, setPending] = useState<PendingRequest[]>([]);
+  const [incoming, setIncoming] = useState<IncomingRequest[]>([]);
+  const [respondingTo, setRespondingTo] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Person[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -27,10 +36,13 @@ export function CollaboratorsPanel({ projectId, isOwner, onBack }: { projectId: 
 
   useEffect(() => {
     api
-      .get<{ collaborators: Collaborator[]; pendingRequests: PendingRequest[] }>(`/api/projects/${projectId}/collaborators`)
+      .get<{ collaborators: Collaborator[]; pendingRequests: PendingRequest[]; incomingRequests: IncomingRequest[] }>(
+        `/api/projects/${projectId}/collaborators`
+      )
       .then((r) => {
         setCollaborators(r.collaborators);
         setPending(r.pendingRequests);
+        setIncoming(r.incomingRequests);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Couldn't load collaborators."));
   }, [projectId]);
@@ -70,6 +82,25 @@ export function CollaboratorsPanel({ projectId, isOwner, onBack }: { projectId: 
       setError(err instanceof Error ? err.message : "Couldn't send that invite.");
     } finally {
       setInviting(false);
+    }
+  }
+
+  async function respondToIncoming(requestId: string, status: "accepted" | "rejected") {
+    setRespondingTo(requestId);
+    setError(null);
+    try {
+      await api.patch(`/api/collaboration-requests/${requestId}`, { status });
+      setIncoming((prev) => prev.filter((r) => r.id !== requestId));
+      if (status === "accepted") {
+        const accepted = incoming.find((r) => r.id === requestId);
+        if (accepted) {
+          setCollaborators((prev) => [...(prev ?? []), { role: "edit", user: accepted.initiator }]);
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't respond to that request.");
+    } finally {
+      setRespondingTo(null);
     }
   }
 
@@ -164,8 +195,43 @@ export function CollaboratorsPanel({ projectId, isOwner, onBack }: { projectId: 
             )}
           </div>
         ))}
-        {collaborators?.length === 0 && pending.length === 0 && <p className="text-sm text-text-soft">No one else has access yet.</p>}
+        {collaborators?.length === 0 && pending.length === 0 && incoming.length === 0 && (
+          <p className="text-sm text-text-soft">No one else has access yet.</p>
+        )}
       </div>
+
+      {isOwner && incoming.length > 0 && (
+        <div className="mt-4">
+          <div className="mb-2 text-[11px] uppercase tracking-[0.06em] text-text-soft">Wants to join</div>
+          <div className="space-y-2">
+            {incoming.map((r) => (
+              <div key={r.id} className="rounded-xl bg-surface p-3">
+                <div className="flex items-center gap-3">
+                  <Avatar name={r.initiator.penName} size="sm" />
+                  <div className="min-w-0 flex-1 truncate text-sm text-text">{r.initiator.penName}</div>
+                </div>
+                {r.message && <p className="mt-2 text-sm text-text-soft">“{r.message}”</p>}
+                <div className="mt-2 flex gap-2">
+                  <button
+                    onClick={() => respondToIncoming(r.id, "rejected")}
+                    disabled={respondingTo === r.id}
+                    className="flex-1 rounded-lg bg-active py-1.5 text-xs font-medium text-text disabled:opacity-60"
+                  >
+                    Decline
+                  </button>
+                  <button
+                    onClick={() => respondToIncoming(r.id, "accepted")}
+                    disabled={respondingTo === r.id}
+                    className="flex-1 rounded-lg bg-strong py-1.5 text-xs font-semibold text-on-strong disabled:opacity-60"
+                  >
+                    {respondingTo === r.id ? "Adding…" : "Accept"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {pending.length > 0 && (
         <div className="mt-4">
@@ -188,5 +254,4 @@ export function CollaboratorsPanel({ projectId, isOwner, onBack }: { projectId: 
       )}
     </div>
   );
-                                           }
-    
+}
