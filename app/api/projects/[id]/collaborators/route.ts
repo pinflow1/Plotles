@@ -12,6 +12,14 @@ const REQUEST_SELECT = {
   recipient: { select: { id: true, penName: true, avatarUrl: true } },
 } as const;
 
+const INCOMING_SELECT = {
+  id: true,
+  role: true,
+  message: true,
+  createdAt: true,
+  initiator: { select: { id: true, penName: true, avatarUrl: true, bio: true, genres: true } },
+} as const;
+
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
@@ -19,16 +27,25 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const role = await getProjectRole(userId, params.id);
   if (!role) return NextResponse.json({ error: "Not found." }, { status: 404 });
 
-  const [collaborators, pendingRequests] = await Promise.all([
+  const project = await prisma.project.findUnique({ where: { id: params.id }, select: { ownerId: true } });
+
+  const [collaborators, sentRequests, incomingRequests] = await Promise.all([
     prisma.projectAccess.findMany({ where: { projectId: params.id }, select: COLLABORATOR_SELECT }),
+    // Owner picked this person directly — waiting on them to respond.
     prisma.collaborationRequest.findMany({
-      where: { projectId: params.id, status: "pending" },
+      where: { projectId: params.id, status: "pending", initiatorId: project?.ownerId },
       select: REQUEST_SELECT,
+      orderBy: { createdAt: "desc" },
+    }),
+    // Someone found this story and asked to join — waiting on the owner.
+    prisma.collaborationRequest.findMany({
+      where: { projectId: params.id, status: "pending", initiatorId: { not: project?.ownerId } },
+      select: INCOMING_SELECT,
       orderBy: { createdAt: "desc" },
     }),
   ]);
 
-  return NextResponse.json({ collaborators, pendingRequests });
+  return NextResponse.json({ collaborators, pendingRequests: sentRequests, incomingRequests });
 }
 
 // Sends a request to a Plotless user found by pen name search (see
@@ -68,4 +85,5 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
     throw err;
   }
-}
+    }
+  
