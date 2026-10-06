@@ -33,6 +33,10 @@ model Project {
   goalWordCount Int?
   deadline      DateTime?
   status        ProjectStatus   @default(drafting)
+  // Genre tags and an optional note on what kind of collaborator the
+  // story is looking for — shown on Find Stories cards.
+  genres        String[]        @default([])
+  lookingFor    String?
   // How this story is written — solo by default. Everything about
   // discoverability and identity (public vs private, known vs anonymous)
   // is encoded in this one field rather than a pile of separate booleans,
