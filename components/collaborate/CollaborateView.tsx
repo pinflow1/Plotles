@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ChevronLeft, Search } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Avatar } from "@/components/ui/Avatar";
@@ -21,6 +22,7 @@ type DiscoverProject = {
 };
 
 export function CollaborateView({ user }: { user: { penName: string; avatarUrl: string | null } }) {
+  const router = useRouter();
   const [tab, setTab] = useState<Tab>("writers");
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -123,7 +125,11 @@ export function CollaborateView({ user }: { user: { penName: string; avatarUrl: 
             ) : (
               <div className="space-y-2">
                 {results.map((w) => (
-                  <div key={w.id} className="rounded-2xl bg-surface p-4">
+                  <button
+                    key={w.id}
+                    onClick={() => router.push(`/collaborate/writers/${w.id}`)}
+                    className="w-full rounded-2xl bg-surface p-4 text-left active:bg-active"
+                  >
                     <div className="flex items-center gap-3">
                       <Avatar name={w.penName} />
                       <div className="min-w-0 flex-1">
@@ -136,7 +142,7 @@ export function CollaborateView({ user }: { user: { penName: string; avatarUrl: 
                       </div>
                     </div>
                     {w.bio && <p className="mt-2 text-sm text-text-soft">{w.bio}</p>}
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
@@ -175,4 +181,4 @@ export function CollaborateView({ user }: { user: { penName: string; avatarUrl: 
       <NavDrawer open={drawerOpen} onOpenChange={setDrawerOpen} user={user} active="collaborate" />
     </div>
   );
-}
+            }
