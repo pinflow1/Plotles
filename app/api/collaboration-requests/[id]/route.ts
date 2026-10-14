@@ -3,6 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 
 const ANONYMOUS_MODES = ["anonymous_duo", "public_anonymous", "private_anonymous"];
+// Duo modes are always exactly two writers; every other mode uses the
+// project's own maxParticipants (null = uncapped). Both count the owner.
+const PAIR_MODES = ["duo", "anonymous_duo"];
+
+type JoinResult = { full: true; capacity: number } | { full: false };
 
 // Accept or reject a request addressed to you. Only the recipient can
 // respond to their own invite.
@@ -16,7 +21,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const request = await prisma.collaborationRequest.findUnique({
     where: { id: params.id },
-    include: { project: { select: { collaborationMode: true } } },
+    include: { project: { select: { ownerId: true, collaborationMode: true, maxParticipants: true } } },
   });
   if (!request) return NextResponse.json({ error: "Not found." }, { status: 404 });
   if (request.recipientId !== userId) {
@@ -28,26 +33,62 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   try {
     if (status === "accepted") {
-      const isAnonymous = ANONYMOUS_MODES.includes(request.project.collaborationMode);
+      const { ownerId, collaborationMode, maxParticipants } = request.project;
 
-      await prisma.$transaction(async (tx) => {
-        await tx.collaborationRequest.update({ where: { id: params.id }, data: { status, respondedAt: new Date() } });
+      // The person being added is whoever on this request ISN'T the owner:
+      // the recipient when the owner invited them, the initiator when they
+      // asked to join. (The signed-in user is always the recipient — on a
+      // join request that's the owner, who already has access. Granting
+      // access to the signed-in user would overwrite the owner's own row
+      // instead of adding the writer.)
+      const participantId = request.initiatorId === ownerId ? request.recipientId : request.initiatorId;
+      const isAnonymous = ANONYMOUS_MODES.includes(collaborationMode);
+      const capacity = PAIR_MODES.includes(collaborationMode) ? 2 : maxParticipants;
 
-        let anonymousNumber: number | null = null;
-        if (isAnonymous) {
-          const highest = await tx.projectAccess.aggregate({
-            where: { projectId: request.projectId, isAnonymous: true },
-            _max: { anonymousNumber: true },
+      const result = await prisma.$transaction(async (tx): Promise<JoinResult> => {
+        const existing = await tx.projectAccess.findUnique({
+          where: { projectId_userId: { projectId: request.projectId, userId: participantId } },
+        });
+
+        if (existing) {
+          // Already in (e.g. invited and asked to join at the same time):
+          // just apply the role. Keep their identity and Anonymous Writer
+          // number as they are, and never touch the owner's row.
+          if (existing.role !== "owner") {
+            await tx.projectAccess.update({ where: { id: existing.id }, data: { role: request.role } });
+          }
+        } else {
+          if (capacity !== null) {
+            const taken = await tx.projectAccess.count({ where: { projectId: request.projectId } });
+            if (taken >= capacity) return { full: true, capacity };
+          }
+
+          let anonymousNumber: number | null = null;
+          if (isAnonymous) {
+            const highest = await tx.projectAccess.aggregate({
+              where: { projectId: request.projectId, isAnonymous: true },
+              _max: { anonymousNumber: true },
+            });
+            anonymousNumber = (highest._max.anonymousNumber ?? 0) + 1;
+          }
+
+          await tx.projectAccess.create({
+            data: { projectId: request.projectId, userId: participantId, role: request.role, isAnonymous, anonymousNumber },
           });
-          anonymousNumber = (highest._max.anonymousNumber ?? 0) + 1;
         }
 
-        await tx.projectAccess.upsert({
-          where: { projectId_userId: { projectId: request.projectId, userId } },
-          update: { role: request.role, isAnonymous, anonymousNumber },
-          create: { projectId: request.projectId, userId, role: request.role, isAnonymous, anonymousNumber },
-        });
+        await tx.collaborationRequest.update({ where: { id: params.id }, data: { status, respondedAt: new Date() } });
+        return { full: false };
       });
+
+      // The request stays pending when the story is full, so the owner can
+      // still decline it (or accept it after making room).
+      if (result.full) {
+        return NextResponse.json(
+          { error: `This story is full — all ${result.capacity} writer spots are taken.` },
+          { status: 409 }
+        );
+      }
     } else {
       await prisma.collaborationRequest.update({ where: { id: params.id }, data: { status, respondedAt: new Date() } });
     }
