@@ -149,7 +149,14 @@ model CollaborationRequest {
   createdAt   DateTime                    @default(now())
   respondedAt DateTime?
 
-  @@unique([projectId, recipientId, status])
+  // Deliberately no @@unique here. "At most one PENDING request per
+  // (project, initiator, recipient)" is enforced by a partial unique index
+  // created in bootstrap-db-v6 (WHERE status = 'pending') — Prisma can't
+  // express partial indexes, so it exists only in the database, and the
+  // routes catch its P2002. The old @@unique([projectId, recipientId,
+  // status]) was wrong: on a join request the recipient is always the
+  // owner, so it allowed one pending, one accepted and one rejected
+  // request per story in total.
 }
 
 model Idea {
