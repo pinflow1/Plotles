@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { CollaborationMode } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 
 // Duo/anonymous_duo are fixed at two and not something you add a third
 // person to; solo has no collaboration at all. Everything else can take
 // more people, space permitting.
-const INVITABLE_MODES = ["multiple", "public", "public_anonymous", "private", "private_anonymous"];
+const INVITABLE_MODES: CollaborationMode[] = ["multiple", "public", "public_anonymous", "private", "private_anonymous"];
 
 export async function GET(_req: NextRequest) {
   const userId = await getSessionUserId();
