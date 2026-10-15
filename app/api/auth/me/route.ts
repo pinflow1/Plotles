@@ -8,7 +8,7 @@ export async function GET() {
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, email: true, penName: true, avatarUrl: true, bio: true, genres: true, interests: true, createdAt: true },
+    select: { id: true, email: true, penName: true, avatarUrl: true, bio: true, realName: true, genres: true, interests: true, createdAt: true },
   });
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
@@ -16,16 +16,20 @@ export async function GET() {
 }
 
 // Lightweight, writing-focused profile fields only — what Find Writers
-// searches and displays. Not account settings (no email/password here).
+// searches and displays, plus the private real name (never shown there).
+// Not account settings (no email/password here).
 export async function PATCH(req: NextRequest) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
   const body = await req.json().catch(() => null);
-  const data: { bio?: string | null; genres?: string[]; interests?: string[] } = {};
+  const data: { bio?: string | null; realName?: string | null; genres?: string[]; interests?: string[] } = {};
 
   if ("bio" in (body ?? {})) {
     data.bio = typeof body.bio === "string" && body.bio.trim() ? body.bio.trim().slice(0, 280) : null;
+  }
+  if ("realName" in (body ?? {})) {
+    data.realName = typeof body.realName === "string" && body.realName.trim() ? body.realName.trim().slice(0, 80) : null;
   }
   if ("genres" in (body ?? {})) {
     data.genres = Array.isArray(body.genres) ? body.genres.filter((g: unknown) => typeof g === "string" && g.trim()).slice(0, 10) : [];
@@ -38,7 +42,7 @@ export async function PATCH(req: NextRequest) {
     const user = await prisma.user.update({
       where: { id: userId },
       data,
-      select: { id: true, email: true, penName: true, avatarUrl: true, bio: true, genres: true, interests: true, createdAt: true },
+      select: { id: true, email: true, penName: true, avatarUrl: true, bio: true, realName: true, genres: true, interests: true, createdAt: true },
     });
     return NextResponse.json({ user });
   } catch (err) {
