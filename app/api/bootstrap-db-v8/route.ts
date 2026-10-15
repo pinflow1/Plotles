@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-// TEMPORARY, ONE-TIME USE — same pattern as bootstrap-db through -v6.
-// Adds User.realName: the optional private name a story owner sees when
-// they tap an Anonymous Writer. Run this BEFORE deploying the code that
+// TEMPORARY, ONE-TIME USE — same pattern as bootstrap-db through -v7.
+// Adds Project.previewText: the excerpt an owner chooses to share with
+// writers browsing Find Stories. Run this BEFORE deploying the code that
 // reads the column — Prisma selects every column by default, so queries
-// on "User" fail until it exists. Delete this file once it's run
+// on "Project" fail until it exists. Delete this file once it's run
 // successfully.
 //
-// Visit: /api/bootstrap-db-v7?secret=<your JWT_SECRET value>
+// Visit: /api/bootstrap-db-v8?secret=<your JWT_SECRET value>
 
-const STATEMENTS = [`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "realName" TEXT`];
+const STATEMENTS = [`ALTER TABLE "Project" ADD COLUMN IF NOT EXISTS "previewText" TEXT`];
 
 export async function GET(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get("secret");
@@ -32,4 +32,4 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({ ok: true, message: "Migration complete. Delete this route now.", completed: done });
-      }
+}
