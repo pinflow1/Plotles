@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
-import { getProjectRole } from "@/lib/access";
-import { authorizeLiveblocksUser } from "@/lib/liveblocks";
+import { getLiveblocksClient } from "@/lib/liveblocks";
+import { anonymousLabel } from "@/lib/anonymous";
 
 export async function POST(req: NextRequest) {
   const userId = await getSessionUserId();
@@ -14,8 +14,11 @@ export async function POST(req: NextRequest) {
   const projectId = room.startsWith("project:") ? room.slice("project:".length) : "";
   if (!projectId) return NextResponse.json({ error: "Unrecognized room." }, { status: 400 });
 
-  const role = await getProjectRole(userId, projectId);
-  if (!role) return NextResponse.json({ error: "You don't have access to this project." }, { status: 403 });
+  const access = await prisma.projectAccess.findUnique({
+    where: { projectId_userId: { projectId, userId } },
+    select: { id: true, role: true, isAnonymous: true, anonymousNumber: true },
+  });
+  if (!access) return NextResponse.json({ error: "You don't have access to this project." }, { status: 403 });
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -23,16 +26,25 @@ export async function POST(req: NextRequest) {
   });
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
+  // The id and userInfo below are visible to every other writer in the room
+  // (cursor labels, presence). On an anonymous story a writer joins under
+  // an opaque id — the access row's, not their user id — and their
+  // "Anonymous Writer NN" label, with no avatar.
+  const anonymous = access.isAnonymous && access.role !== "owner";
+
   try {
-    const { token } = await authorizeLiveblocksUser({
-      userId,
-      userInfo: { name: user.penName, avatar: user.avatarUrl },
-      room,
-      permission: role === "view" ? "room:read" : "room:write",
+    const liveblocks = getLiveblocksClient();
+    const session = liveblocks.prepareSession(anonymous ? access.id : userId, {
+      userInfo: anonymous
+        ? { name: anonymousLabel(access.anonymousNumber) }
+        : { name: user.penName, avatar: user.avatarUrl ?? undefined },
     });
-    return NextResponse.json({ token });
+    session.allow(room, access.role === "view" ? ["room:read"] : ["room:write"]);
+
+    const { status, body: responseBody } = await session.authorize();
+    return new NextResponse(responseBody, { status });
   } catch (err) {
-    console.error(err);
+    console.error("POST /api/liveblocks-auth failed:", err);
     return NextResponse.json({ error: "Couldn't authorize the collaboration session." }, { status: 502 });
   }
 }
