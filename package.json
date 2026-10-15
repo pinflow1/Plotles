@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@liveblocks/client": "^2.13.0",
+    "@liveblocks/node": "^2.13.0",
     "@liveblocks/react": "^2.13.0",
     "@liveblocks/react-tiptap": "^2.13.0",
     "@prisma/client": "^5.20.0",
