@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BookOpen, ChevronLeft, ImageIcon, Download, Users, Info, Flag, Target, Trash2, Camera } from "lucide-react";
+import { BookOpen, ChevronLeft, ImageIcon, Download, Users, Info, Flag, Target, Trash2, Camera, Eye } from "lucide-react";
 import type { Chapter, Project, ProjectStatus } from "@prisma/client";
 import { api } from "@/lib/api-client";
 import { timeAgo } from "@/lib/format";
@@ -13,7 +13,10 @@ import { ChaptersPanel } from "@/components/bottom-sheet/ChaptersPanel";
 import { CollaboratorsPanel } from "@/components/bottom-sheet/CollaboratorsPanel";
 
 type ProjectWithChapters = Project & { chapters: Chapter[]; role: "owner" | "edit" | "view" };
-type Panel = "details" | "status" | "goal" | "collaborators" | "delete" | null;
+type Panel = "details" | "status" | "goal" | "collaborators" | "preview" | "delete" | null;
+
+// Matches the cap the server enforces on previewText.
+const PREVIEW_MAX = 3000;
 
 const STATUS_LABELS: Record<ProjectStatus, string> = {
   planning: "Planning",
@@ -42,12 +45,17 @@ export function ProjectView({
   const [draftDescription, setDraftDescription] = useState(project.description ?? "");
   const [draftGoal, setDraftGoal] = useState(project.goalWordCount ? String(project.goalWordCount) : "");
   const [draftDeadline, setDraftDeadline] = useState(toDateInputValue(project.deadline));
+  const [draftLookingFor, setDraftLookingFor] = useState(project.lookingFor ?? "");
+  const [draftPreview, setDraftPreview] = useState(project.previewText ?? "");
+  const [previewBusy, setPreviewBusy] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [coverBusy, setCoverBusy] = useState(false);
   const [coverError, setCoverError] = useState<string | null>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
 
   const canEdit = project.role === "owner" || project.role === "edit";
+  const isOpenStory = project.collaborationMode === "public" || project.collaborationMode === "public_anonymous";
   const chapters = project.chapters;
   const mostRecentChapter = [...chapters].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0];
   const totalWords = chapters.reduce((sum, c) => sum + c.wordCount, 0);
@@ -122,6 +130,33 @@ export function ProjectView({
     }
   }
 
+  function togglePreview() {
+    if (panel === "preview") {
+      close();
+      return;
+    }
+    setDraftLookingFor(project.lookingFor ?? "");
+    setDraftPreview(project.previewText ?? "");
+    setPreviewError(null);
+    setPanel("preview");
+  }
+
+  async function savePreview() {
+    const lookingFor = draftLookingFor.trim() || null;
+    const previewText = draftPreview.trim() || null;
+    setPreviewBusy(true);
+    setPreviewError(null);
+    try {
+      await api.patch(`/api/projects/${project.id}`, { lookingFor, previewText });
+      setProject((prev) => ({ ...prev, lookingFor, previewText }));
+      close();
+    } catch (err) {
+      setPreviewError(err instanceof Error ? err.message : "Couldn't save that.");
+    } finally {
+      setPreviewBusy(false);
+    }
+  }
+
   async function confirmDelete() {
     setBusy(true);
     try {
@@ -137,7 +172,14 @@ export function ProjectView({
       <input ref={coverInputRef} type="file" accept="image/*" onChange={onCoverSelected} className="hidden" />
 
       <header className="flex items-center justify-between px-4 py-3">
-        <button onClick={() => setDrawerOpen(true)} aria-label="Menu" className="rounded-lg p-2.5 text-text active:bg-active">
+        <button
+          onClick={() => {
+            close();
+            setDrawerOpen(true);
+          }}
+          aria-label="Menu"
+          className="rounded-lg p-2.5 text-text active:bg-active"
+        >
           <ChevronLeft size={20} strokeWidth={1.6} />
         </button>
         <span className="truncate text-sm text-text-soft">{project.title}</span>
@@ -231,6 +273,9 @@ export function ProjectView({
             )}
             <ActionRow icon={Download} label="Export" value="Coming soon" disabled onClick={() => {}} />
             <ActionRow icon={Users} label="Collaborators" onClick={() => setPanel(panel === "collaborators" ? null : "collaborators")} last={project.role !== "owner"} />
+            {project.role === "owner" && isOpenStory && (
+              <ActionRow icon={Eye} label="Public preview" value={project.previewText ? "Excerpt shared" : "No excerpt"} onClick={togglePreview} />
+            )}
             {project.role === "owner" && <ActionRow icon={Trash2} label="Delete Project" onClick={() => setPanel(panel === "delete" ? null : "delete")} last />}
           </div>
 
@@ -307,6 +352,45 @@ export function ProjectView({
           {panel === "collaborators" && (
             <div className="mt-2 rounded-2xl bg-surface p-4">
               <CollaboratorsPanel projectId={project.id} isOwner={project.role === "owner"} />
+            </div>
+          )}
+
+          {panel === "preview" && (
+            <div className="mt-2 space-y-2 rounded-2xl bg-surface p-4">
+              <p className="text-xs text-text-soft">
+                This is everything a writer browsing Find Stories can read before joining. Nothing from your chapters is shared unless you paste it here.
+              </p>
+              <input
+                value={draftLookingFor}
+                onChange={(e) => setDraftLookingFor(e.target.value)}
+                maxLength={140}
+                placeholder="Looking for (optional)"
+                className="w-full rounded-lg border border-divider bg-transparent px-3 py-2 text-sm text-text outline-none placeholder:text-text-soft"
+              />
+              <textarea
+                value={draftPreview}
+                onChange={(e) => setDraftPreview(e.target.value)}
+                maxLength={PREVIEW_MAX}
+                rows={8}
+                placeholder="Excerpt — paste the passage you're happy for others to read"
+                className="w-full resize-none rounded-lg border border-divider bg-transparent px-3 py-2 font-serif text-sm text-text outline-none placeholder:text-text-soft"
+              />
+              <div className="text-right text-[11px] text-text-soft">
+                {draftPreview.length.toLocaleString()} / {PREVIEW_MAX.toLocaleString()}
+              </div>
+              {previewError && <p className="text-xs text-text-soft">{previewError}</p>}
+              <div className="flex gap-2">
+                <button onClick={close} className="flex-1 rounded-lg bg-active py-1.5 text-xs font-medium text-text">
+                  Cancel
+                </button>
+                <button
+                  onClick={savePreview}
+                  disabled={previewBusy}
+                  className="flex-1 rounded-lg bg-strong py-1.5 text-xs font-semibold text-on-strong disabled:opacity-60"
+                >
+                  {previewBusy ? "Saving…" : "Save"}
+                </button>
+              </div>
             </div>
           )}
 
