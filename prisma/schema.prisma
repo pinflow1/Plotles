@@ -14,6 +14,10 @@ model User {
   hashedPassword String
   avatarUrl      String?
   bio            String?
+  // Optional and private. Never returned by Find Writers or profile pages —
+  // only a story owner sees it, and only when they tap an Anonymous Writer
+  // on their own anonymous story (see /api/projects/[id]/collaborators).
+  realName       String?
   genres         String[]        @default([])
   interests      String[]        @default([])
   createdAt      DateTime        @default(now())
