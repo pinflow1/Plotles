@@ -42,6 +42,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (body?.deadline === null) data.deadline = null;
   else if (typeof body?.deadline === "string" && !isNaN(Date.parse(body.deadline))) data.deadline = new Date(body.deadline);
 
+  // What strangers browsing Find Stories see is the owner's call alone —
+  // editors can change the story, not how it's advertised.
+  if (isOwner(role)) {
+    if (body?.lookingFor === null || typeof body?.lookingFor === "string") {
+      data.lookingFor = typeof body.lookingFor === "string" && body.lookingFor.trim() ? body.lookingFor.trim().slice(0, 140) : null;
+    }
+    if (body?.previewText === null || typeof body?.previewText === "string") {
+      data.previewText = typeof body.previewText === "string" && body.previewText.trim() ? body.previewText.trim().slice(0, 3000) : null;
+    }
+  }
+
   try {
     const project = await prisma.project.update({ where: { id: params.id }, data });
     return NextResponse.json({ project });
@@ -67,4 +78,4 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     const detail = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: `Couldn't delete that: ${detail}` }, { status: 500 });
   }
-                            }
+}
