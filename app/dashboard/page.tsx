@@ -12,7 +12,7 @@ export default async function DashboardPage() {
   const [access, ideas, user, stats, invitations] = await Promise.all([
     prisma.projectAccess.findMany({
       where: { userId },
-      select: { role: true, project: { include: { chapters: true, access: true } } },
+      select: { role: true, project: { include: { chapters: true, _count: { select: { access: true } } } } },
       orderBy: { project: { updatedAt: "desc" } },
     }),
     prisma.idea.findMany({ where: { userId }, orderBy: { createdAt: "desc" } }),
@@ -25,7 +25,7 @@ export default async function DashboardPage() {
         role: true,
         message: true,
         createdAt: true,
-        project: { select: { id: true, title: true } },
+        project: { select: { id: true, title: true, ownerId: true } },
         initiator: { select: { id: true, penName: true, avatarUrl: true } },
       },
       orderBy: { createdAt: "desc" },
@@ -36,7 +36,7 @@ export default async function DashboardPage() {
   const projects = access.map((a) => ({
     ...a.project,
     role: a.role,
-    collaboratorCount: a.project.access.length,
+    collaboratorCount: a.project._count.access,
   }));
 
   // Sum of today's pace across every project that actually has a goal +
@@ -53,7 +53,16 @@ export default async function DashboardPage() {
   // CollaborationRequest.role reuses the same CollaboratorRole enum as
   // ProjectAccess (owner/edit/view), but nothing ever creates one with
   // owner — narrowed here rather than in the schema.
-  const pendingInvitations = invitations.map((inv) => ({ ...inv, role: inv.role as "edit" | "view" }));
+  //
+  // Every request listed here is addressed to the signed-in user. When
+  // that user owns the story, it's a writer asking to join it rather than
+  // someone inviting them, and the card words it that way.
+  const pendingInvitations = invitations.map(({ project, ...inv }) => ({
+    ...inv,
+    role: inv.role as "edit" | "view",
+    project: { id: project.id, title: project.title },
+    isJoinRequest: project.ownerId === userId,
+  }));
 
   return (
     <DashboardView
