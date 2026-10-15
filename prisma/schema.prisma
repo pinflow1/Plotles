@@ -41,6 +41,10 @@ model Project {
   // story is looking for — shown on Find Stories cards.
   genres        String[]        @default([])
   lookingFor    String?
+  // The excerpt the owner chooses to share with writers browsing Find
+  // Stories. Typed or pasted by the owner — nothing is read from the
+  // chapters, so the manuscript is never exposed automatically.
+  previewText   String?
   // How this story is written — solo by default. Everything about
   // discoverability and identity (public vs private, known vs anonymous)
   // is encoded in this one field rather than a pile of separate booleans,
