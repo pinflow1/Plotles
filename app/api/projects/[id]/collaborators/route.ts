@@ -2,8 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { getProjectRole, isOwner } from "@/lib/access";
+import { ANONYMOUS_MODES, anonymousLabel } from "@/lib/anonymous";
+import type { CollaboratorRole } from "@prisma/client";
 
-const COLLABORATOR_SELECT = { role: true, user: { select: { id: true, penName: true, avatarUrl: true } } } as const;
+const ACCESS_SELECT = {
+  id: true,
+  role: true,
+  isAnonymous: true,
+  anonymousNumber: true,
+  user: { select: { id: true, penName: true, realName: true } },
+} as const;
 const REQUEST_SELECT = {
   id: true,
   role: true,
@@ -20,17 +28,32 @@ const INCOMING_SELECT = {
   initiator: { select: { id: true, penName: true, avatarUrl: true, bio: true, genres: true } },
 } as const;
 
+type CollaboratorOut = {
+  id: string;
+  userId: string;
+  role: CollaboratorRole;
+  label: string;
+  anonymous: boolean;
+  anonymousNumber: number | null;
+  isYou: boolean;
+  reveal?: { penName: string; realName: string | null };
+};
+
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
   const role = await getProjectRole(userId, params.id);
   if (!role) return NextResponse.json({ error: "Not found." }, { status: 404 });
+  const viewerIsOwner = isOwner(role);
 
-  const project = await prisma.project.findUnique({ where: { id: params.id }, select: { ownerId: true } });
+  const project = await prisma.project.findUnique({
+    where: { id: params.id },
+    select: { ownerId: true, collaborationMode: true },
+  });
 
-  const [collaborators, sentRequests, incomingRequests] = await Promise.all([
-    prisma.projectAccess.findMany({ where: { projectId: params.id }, select: COLLABORATOR_SELECT }),
+  const [access, sentRequests, incomingRequests] = await Promise.all([
+    prisma.projectAccess.findMany({ where: { projectId: params.id }, select: ACCESS_SELECT }),
     // Owner picked this person directly — waiting on them to respond.
     prisma.collaborationRequest.findMany({
       where: { projectId: params.id, status: "pending", initiatorId: project?.ownerId },
@@ -45,7 +68,43 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     }),
   ]);
 
-  return NextResponse.json({ collaborators, pendingRequests: sentRequests, incomingRequests });
+  // What this viewer may know about each participant. On an anonymous story
+  // a participant is only ever "Anonymous Writer NN": other writers get no
+  // name and no user id (an id would let them look the person up), and the
+  // owner gets the real identity separately, as `reveal`, to show when they
+  // tap the label.
+  const collaborators = access.map((a): CollaboratorOut => {
+    const isYou = a.user.id === userId;
+    // The owner is never anonymous, whatever the row says.
+    const anonymous = a.isAnonymous && a.role !== "owner";
+    if (!anonymous) {
+      return { id: a.id, userId: a.user.id, role: a.role, label: a.user.penName, anonymous: false, anonymousNumber: null, isYou };
+    }
+    return {
+      id: a.id,
+      userId: viewerIsOwner ? a.user.id : a.id,
+      role: a.role,
+      label: anonymousLabel(a.anonymousNumber),
+      anonymous: true,
+      anonymousNumber: a.anonymousNumber,
+      isYou,
+      ...(viewerIsOwner ? { reveal: { penName: a.user.penName, realName: a.user.realName } } : {}),
+    };
+  });
+  // Owner first, then named writers, then Anonymous Writer 01, 02, …
+  const rank = (c: CollaboratorOut) => (c.role === "owner" ? 0 : c.anonymous ? 2 : 1);
+  collaborators.sort((a, b) => rank(a) - rank(b) || (a.anonymousNumber ?? 0) - (b.anonymousNumber ?? 0));
+
+  // On an anonymous story, only the owner sees who has been invited or has
+  // asked to join: a name on that list that turns into "Anonymous Writer
+  // 04" a moment later would give the game away.
+  const hideRequests = !viewerIsOwner && !!project && ANONYMOUS_MODES.includes(project.collaborationMode);
+
+  return NextResponse.json({
+    collaborators,
+    pendingRequests: hideRequests ? [] : sentRequests,
+    incomingRequests: hideRequests ? [] : incomingRequests,
+  });
 }
 
 // Sends a request to a Plotless user found by pen name search (see
@@ -85,5 +144,4 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
     throw err;
   }
-    }
-  
+  }
