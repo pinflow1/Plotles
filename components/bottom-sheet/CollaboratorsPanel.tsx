@@ -6,7 +6,19 @@ import { api } from "@/lib/api-client";
 import { Avatar } from "@/components/ui/Avatar";
 import { Segmented } from "@/components/ui/Segmented";
 
-type Collaborator = { role: "owner" | "edit" | "view"; user: { id: string; penName: string; avatarUrl: string | null } };
+// What the server says this viewer may know about each participant. On an
+// anonymous story `label` is "Anonymous Writer 03", and the real identity
+// only arrives (as `reveal`) when the viewer is the owner.
+type Collaborator = {
+  id: string;
+  userId: string;
+  role: "owner" | "edit" | "view";
+  label: string;
+  anonymous: boolean;
+  anonymousNumber: number | null;
+  isYou: boolean;
+  reveal?: { penName: string; realName: string | null };
+};
 type PendingRequest = {
   id: string;
   role: "edit" | "view";
@@ -22,12 +34,14 @@ type IncomingRequest = {
   createdAt: string;
   initiator: { id: string; penName: string; avatarUrl: string | null; bio: string | null; genres: string[] };
 };
+type CollaboratorsResponse = { collaborators: Collaborator[]; pendingRequests: PendingRequest[]; incomingRequests: IncomingRequest[] };
 
 export function CollaboratorsPanel({ projectId, isOwner, onBack }: { projectId: string; isOwner: boolean; onBack?: () => void }) {
   const [collaborators, setCollaborators] = useState<Collaborator[] | null>(null);
   const [pending, setPending] = useState<PendingRequest[]>([]);
   const [incoming, setIncoming] = useState<IncomingRequest[]>([]);
   const [respondingTo, setRespondingTo] = useState<string | null>(null);
+  const [revealed, setRevealed] = useState<Record<string, boolean>>({});
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Person[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -36,9 +50,7 @@ export function CollaboratorsPanel({ projectId, isOwner, onBack }: { projectId: 
 
   useEffect(() => {
     api
-      .get<{ collaborators: Collaborator[]; pendingRequests: PendingRequest[]; incomingRequests: IncomingRequest[] }>(
-        `/api/projects/${projectId}/collaborators`
-      )
+      .get<CollaboratorsResponse>(`/api/projects/${projectId}/collaborators`)
       .then((r) => {
         setCollaborators(r.collaborators);
         setPending(r.pendingRequests);
@@ -91,11 +103,17 @@ export function CollaboratorsPanel({ projectId, isOwner, onBack }: { projectId: 
     try {
       await api.patch(`/api/collaboration-requests/${requestId}`, { status });
       setIncoming((prev) => prev.filter((r) => r.id !== requestId));
+      // Reload rather than adding the person locally: on an anonymous story
+      // they join as "Anonymous Writer NN", which only the server knows.
       if (status === "accepted") {
-        const accepted = incoming.find((r) => r.id === requestId);
-        if (accepted) {
-          setCollaborators((prev) => [...(prev ?? []), { role: "edit", user: accepted.initiator }]);
-        }
+        await api
+          .get<CollaboratorsResponse>(`/api/projects/${projectId}/collaborators`)
+          .then((r) => {
+            setCollaborators(r.collaborators);
+            setPending(r.pendingRequests);
+            setIncoming(r.incomingRequests);
+          })
+          .catch(() => {});
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't respond to that request.");
@@ -116,7 +134,7 @@ export function CollaboratorsPanel({ projectId, isOwner, onBack }: { projectId: 
   async function setRole(userId: string, role: "edit" | "view") {
     try {
       await api.patch(`/api/projects/${projectId}/collaborators/${userId}`, { role });
-      setCollaborators((prev) => prev?.map((c) => (c.user.id === userId ? { ...c, role } : c)) ?? null);
+      setCollaborators((prev) => prev?.map((c) => (c.userId === userId ? { ...c, role } : c)) ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't change that collaborator's access.");
     }
@@ -125,7 +143,7 @@ export function CollaboratorsPanel({ projectId, isOwner, onBack }: { projectId: 
   async function remove(userId: string) {
     try {
       await api.delete(`/api/projects/${projectId}/collaborators/${userId}`);
-      setCollaborators((prev) => prev?.filter((c) => c.user.id !== userId) ?? null);
+      setCollaborators((prev) => prev?.filter((c) => c.userId !== userId) ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't remove that collaborator.");
     }
@@ -170,31 +188,56 @@ export function CollaboratorsPanel({ projectId, isOwner, onBack }: { projectId: 
       {error && <p className="mb-2 text-xs text-text-soft">{error}</p>}
 
       <div className="space-y-2">
-        {collaborators?.map((c) => (
-          <div key={c.user.id} className="flex items-center gap-3">
-            <Avatar name={c.user.penName} size="sm" />
-            <div className="min-w-0 flex-1 truncate text-sm text-text">{c.user.penName}</div>
-            {c.role === "owner" ? (
-              <span className="text-xs text-text-soft">Owner</span>
-            ) : isOwner ? (
-              <div className="flex items-center gap-1.5">
-                <Segmented
-                  value={c.role}
-                  onChange={(v: "edit" | "view") => setRole(c.user.id, v)}
-                  options={[
-                    { value: "edit", label: "Edit" },
-                    { value: "view", label: "View" },
-                  ]}
-                />
-                <button onClick={() => remove(c.user.id)} aria-label="Remove collaborator" className="text-text-soft/60 active:text-text">
-                  <X size={14} strokeWidth={1.8} />
+        {collaborators?.map((c) => {
+          const isRevealed = !!revealed[c.id];
+          // Owner only (the server sends `reveal` to nobody else): the
+          // Anonymous Writer label stays put, and a tap shows who it is.
+          return (
+            <div key={c.id} className="flex items-center gap-3">
+              <Avatar name={c.anonymous ? (c.anonymousNumber ? String(c.anonymousNumber).padStart(2, "0") : "?") : c.label} size="sm" />
+              {c.reveal ? (
+                <button
+                  onClick={() => setRevealed((prev) => ({ ...prev, [c.id]: !prev[c.id] }))}
+                  aria-expanded={isRevealed}
+                  className="min-w-0 flex-1 text-left"
+                >
+                  <span className="block truncate text-sm text-text">{c.label}</span>
+                  <span className="block truncate text-xs text-text-soft">
+                    {isRevealed
+                      ? c.reveal.realName
+                        ? `${c.reveal.realName} · ${c.reveal.penName}`
+                        : `${c.reveal.penName} · no real name set`
+                      : "Tap to reveal"}
+                  </span>
                 </button>
-              </div>
-            ) : (
-              <span className="text-xs capitalize text-text-soft">{c.role}</span>
-            )}
-          </div>
-        ))}
+              ) : (
+                <div className="min-w-0 flex-1 truncate text-sm text-text">
+                  {c.label}
+                  {c.isYou && <span className="text-text-soft"> · you</span>}
+                </div>
+              )}
+              {c.role === "owner" ? (
+                <span className="text-xs text-text-soft">Owner</span>
+              ) : isOwner ? (
+                <div className="flex items-center gap-1.5">
+                  <Segmented
+                    value={c.role}
+                    onChange={(v: "edit" | "view") => setRole(c.userId, v)}
+                    options={[
+                      { value: "edit", label: "Edit" },
+                      { value: "view", label: "View" },
+                    ]}
+                  />
+                  <button onClick={() => remove(c.userId)} aria-label="Remove collaborator" className="text-text-soft/60 active:text-text">
+                    <X size={14} strokeWidth={1.8} />
+                  </button>
+                </div>
+              ) : (
+                <span className="text-xs capitalize text-text-soft">{c.role}</span>
+              )}
+            </div>
+          );
+        })}
         {collaborators?.length === 0 && pending.length === 0 && incoming.length === 0 && (
           <p className="text-sm text-text-soft">No one else has access yet.</p>
         )}
@@ -254,4 +297,4 @@ export function CollaboratorsPanel({ projectId, isOwner, onBack }: { projectId: 
       )}
     </div>
   );
-}
+    }
