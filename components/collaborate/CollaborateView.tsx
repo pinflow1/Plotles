@@ -159,18 +159,26 @@ export function CollaborateView({ user }: { user: { penName: string; avatarUrl: 
                 {p.genres.length > 0 && <div className="mt-0.5 text-xs text-text-soft">{p.genres.join(" · ")}</div>}
                 {p.description && <p className="mt-2 text-sm text-text-soft">{p.description}</p>}
                 {p.lookingFor && <p className="mt-2 text-sm text-text">Looking for: {p.lookingFor}</p>}
-                <div className="mt-2 flex items-center justify-between">
+                <div className="mt-2 flex items-center justify-between gap-3">
                   <span className="text-xs text-text-soft">
                     {p.maxParticipants ? `${p.participantCount} / ${p.maxParticipants} collaborators` : `${p.participantCount} collaborator${p.participantCount === 1 ? "" : "s"}`}
                     {p.collaborationMode === "public_anonymous" && " · anonymous"}
                   </span>
-                  <button
-                    onClick={() => requestToJoin(p.id)}
-                    disabled={p.alreadyRequested || requesting === p.id}
-                    className="rounded-lg bg-strong px-3 py-1.5 text-xs font-semibold text-on-strong disabled:opacity-50"
-                  >
-                    {p.alreadyRequested ? "Requested" : requesting === p.id ? "Sending…" : "Request to Join"}
-                  </button>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      onClick={() => router.push(`/collaborate/stories/${p.id}`)}
+                      className="rounded-lg bg-active px-3 py-1.5 text-xs font-medium text-text"
+                    >
+                      View
+                    </button>
+                    <button
+                      onClick={() => requestToJoin(p.id)}
+                      disabled={p.alreadyRequested || requesting === p.id}
+                      className="rounded-lg bg-strong px-3 py-1.5 text-xs font-semibold text-on-strong disabled:opacity-50"
+                    >
+                      {p.alreadyRequested ? "Requested" : requesting === p.id ? "Sending…" : "Request to Join"}
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -181,4 +189,4 @@ export function CollaborateView({ user }: { user: { penName: string; avatarUrl: 
       <NavDrawer open={drawerOpen} onOpenChange={setDrawerOpen} user={user} active="collaborate" />
     </div>
   );
-            }
+  }
