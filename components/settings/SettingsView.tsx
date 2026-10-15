@@ -33,7 +33,7 @@ function Row({ label, value, onClick }: { label: string; value?: React.ReactNode
   );
 }
 
-type Profile = { bio: string | null; genres: string[]; interests: string[] };
+type Profile = { bio: string | null; realName: string | null; genres: string[]; interests: string[] };
 
 // Comma list in, trimmed array out — plain text input rather than a tag
 // picker, per "lightweight, not a social platform."
@@ -59,11 +59,12 @@ export function SettingsView({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const [profile, setProfile] = useState<Profile>({ bio: user.bio, genres: user.genres, interests: user.interests });
+  const [profile, setProfile] = useState<Profile>({ bio: user.bio, realName: user.realName, genres: user.genres, interests: user.interests });
   const [editingProfile, setEditingProfile] = useState(false);
   const [draftBio, setDraftBio] = useState(profile.bio ?? "");
   const [draftGenres, setDraftGenres] = useState(profile.genres.join(", "));
   const [draftInterests, setDraftInterests] = useState(profile.interests.join(", "));
+  const [draftRealName, setDraftRealName] = useState(profile.realName ?? "");
   const [profileBusy, setProfileBusy] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
 
@@ -71,6 +72,7 @@ export function SettingsView({
     setDraftBio(profile.bio ?? "");
     setDraftGenres(profile.genres.join(", "));
     setDraftInterests(profile.interests.join(", "));
+    setDraftRealName(profile.realName ?? "");
     setProfileError(null);
     setEditingProfile(true);
   }
@@ -81,9 +83,10 @@ export function SettingsView({
     const bio = draftBio.trim() || null;
     const genres = parseList(draftGenres);
     const interests = parseList(draftInterests);
+    const realName = draftRealName.trim() || null;
     try {
-      await api.patch("/api/auth/me", { bio, genres, interests });
-      setProfile({ bio, genres, interests });
+      await api.patch("/api/auth/me", { bio, realName, genres, interests });
+      setProfile({ bio, realName, genres, interests });
       setEditingProfile(false);
     } catch (err) {
       setProfileError(err instanceof Error ? err.message : "Couldn't save your profile.");
@@ -143,12 +146,13 @@ export function SettingsView({
         </Section>
 
         <Section label="Writer Profile">
-          {/* What Find Writers searches/displays — lightweight on purpose. */}
+          {/* What Find Writers searches/displays — lightweight on purpose. Real name is the exception: private, never shown there. */}
           {!editingProfile ? (
             <>
               <Row label="Bio" value={profile.bio || "Not set"} onClick={openProfileEditor} />
               <Row label="Genres" value={profile.genres.length ? profile.genres.join(", ") : "Not set"} onClick={openProfileEditor} />
               <Row label="Interests" value={profile.interests.length ? profile.interests.join(", ") : "Not set"} onClick={openProfileEditor} />
+              <Row label="Real name (private)" value={profile.realName || "Not set"} onClick={openProfileEditor} />
             </>
           ) : (
             <div className="space-y-3 px-4 py-3">
@@ -180,6 +184,19 @@ export function SettingsView({
                   placeholder="Character development, World building"
                   className="mt-1.5 w-full rounded-lg bg-active px-3 py-2 text-sm text-text outline-none placeholder:text-text-soft"
                 />
+              </label>
+              <label className="block">
+                <span className="text-xs font-semibold uppercase tracking-wide text-text-soft">Real name (private)</span>
+                <input
+                  value={draftRealName}
+                  onChange={(e) => setDraftRealName(e.target.value)}
+                  maxLength={80}
+                  placeholder="Optional"
+                  className="mt-1.5 w-full rounded-lg bg-active px-3 py-2 text-sm text-text outline-none placeholder:text-text-soft"
+                />
+                <span className="mt-1.5 block text-xs text-text-soft">
+                  Never shown in Find Writers. Only a story owner sees it, and only when they tap your Anonymous Writer name.
+                </span>
               </label>
               {profileError && <p className="text-xs text-text-soft">{profileError}</p>}
               <div className="flex gap-2 pt-1">
