@@ -6,8 +6,17 @@ import { ChevronLeft, Search } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Avatar } from "@/components/ui/Avatar";
 import { NavDrawer } from "@/components/navigation/NavDrawer";
+import { MyCollaborationsTab } from "@/components/collaborate/MyCollaborationsTab";
+import { RequestsTab } from "@/components/collaborate/RequestsTab";
 
-type Tab = "writers" | "stories";
+type Tab = "writers" | "stories" | "mine" | "requests";
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: "writers", label: "Find Writers" },
+  { id: "stories", label: "Find Stories" },
+  { id: "mine", label: "My Collaborations" },
+  { id: "requests", label: "Requests" },
+];
 type Writer = { id: string; penName: string; avatarUrl: string | null; bio: string | null; genres: string[]; interests: string[] };
 type DiscoverProject = {
   id: string;
@@ -89,19 +98,16 @@ export function CollaborateView({ user }: { user: { penName: string; avatarUrl: 
       </header>
 
       <div className="mx-auto max-w-lg px-5 pt-2">
-        <div className="mb-5 flex gap-2">
-          <button
-            onClick={() => setTab("writers")}
-            className={`flex-1 rounded-xl py-2.5 text-sm font-medium ${tab === "writers" ? "bg-strong text-on-strong" : "bg-surface text-text-soft"}`}
-          >
-            Find Writers
-          </button>
-          <button
-            onClick={() => setTab("stories")}
-            className={`flex-1 rounded-xl py-2.5 text-sm font-medium ${tab === "stories" ? "bg-strong text-on-strong" : "bg-surface text-text-soft"}`}
-          >
-            Find Stories
-          </button>
+        <div className="-mx-5 mb-5 flex gap-2 overflow-x-auto px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`shrink-0 rounded-xl px-4 py-2.5 text-sm font-medium ${tab === t.id ? "bg-strong text-on-strong" : "bg-surface text-text-soft"}`}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
 
         {error && <p className="mb-3 px-1 text-sm text-text-soft">{error}</p>}
@@ -147,6 +153,10 @@ export function CollaborateView({ user }: { user: { penName: string; avatarUrl: 
               </div>
             )}
           </div>
+        ) : tab === "mine" ? (
+          <MyCollaborationsTab onShowRequests={() => setTab("requests")} />
+        ) : tab === "requests" ? (
+          <RequestsTab />
         ) : stories === null ? (
           <p className="px-1 text-sm text-text-soft">Loading…</p>
         ) : stories.length === 0 ? (
@@ -189,4 +199,4 @@ export function CollaborateView({ user }: { user: { penName: string; avatarUrl: 
       <NavDrawer open={drawerOpen} onOpenChange={setDrawerOpen} user={user} active="collaborate" />
     </div>
   );
-  }
+}
