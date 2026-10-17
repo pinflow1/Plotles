@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { getLiveblocksClient } from "@/lib/liveblocks";
-import { anonymousLabel } from "@/lib/anonymous";
+import { ANONYMOUS_OWNER_LABEL, anonymousLabel } from "@/lib/anonymous";
 
 export async function POST(req: NextRequest) {
   const userId = await getSessionUserId();
@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
 
   const access = await prisma.projectAccess.findUnique({
     where: { projectId_userId: { projectId, userId } },
-    select: { id: true, role: true, isAnonymous: true, anonymousNumber: true },
+    select: { id: true, role: true, isAnonymous: true, anonymousNumber: true, project: { select: { collaborationMode: true } } },
   });
   if (!access) return NextResponse.json({ error: "You don't have access to this project." }, { status: 403 });
 
@@ -29,14 +29,17 @@ export async function POST(req: NextRequest) {
   // The id and userInfo below are visible to every other writer in the room
   // (cursor labels, presence). On an anonymous story a writer joins under
   // an opaque id — the access row's, not their user id — and their
-  // "Anonymous Writer NN" label, with no avatar.
-  const anonymous = access.isAnonymous && access.role !== "owner";
+  // "Anonymous Writer NN" label, with no avatar. On an Anonymous Duo the
+  // owner goes by "Anonymous Author" the same way.
+  const isDuoOwner = access.role === "owner" && access.project.collaborationMode === "anonymous_duo";
+  const anonymous = (access.isAnonymous && access.role !== "owner") || isDuoOwner;
+  const anonymousName = isDuoOwner ? ANONYMOUS_OWNER_LABEL : anonymousLabel(access.anonymousNumber);
 
   try {
     const liveblocks = getLiveblocksClient();
     const session = liveblocks.prepareSession(anonymous ? access.id : userId, {
       userInfo: anonymous
-        ? { name: anonymousLabel(access.anonymousNumber) }
+        ? { name: anonymousName }
         : { name: user.penName, avatar: user.avatarUrl ?? undefined },
     });
     session.allow(room, access.role === "view" ? ["room:read"] : ["room:write"]);
