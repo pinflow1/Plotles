@@ -43,6 +43,8 @@ export function CollaborateView({ user }: { user: { penName: string; avatarUrl: 
   const [stories, setStories] = useState<DiscoverProject[] | null>(null);
   const [requesting, setRequesting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [matching, setMatching] = useState(false);
+  const [matchError, setMatchError] = useState<string | null>(null);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -87,6 +89,19 @@ export function CollaborateView({ user }: { user: { penName: string; avatarUrl: 
     }
   }
 
+  async function matchMe() {
+    setMatching(true);
+    setMatchError(null);
+    try {
+      const { projectId } = await api.post<{ projectId: string }>("/api/anonymous-duo/match");
+      router.push(`/projects/${projectId}`);
+    } catch (err) {
+      setMatchError(err instanceof Error ? err.message : "Couldn't match you right now.");
+    } finally {
+      setMatching(false);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-paper pb-16 pt-[env(safe-area-inset-top)]">
       <header className="flex items-center justify-between px-4 py-3">
@@ -111,6 +126,21 @@ export function CollaborateView({ user }: { user: { penName: string; avatarUrl: 
         </div>
 
         {error && <p className="mb-3 px-1 text-sm text-text-soft">{error}</p>}
+
+        {tab === "stories" && (
+          <div className="mb-4 rounded-2xl bg-surface p-4">
+            <div className="text-[15px] text-text">Anonymous Duo</div>
+            <p className="mt-1 text-sm text-text-soft">Get paired with a writer you don&rsquo;t know. You both start out anonymous.</p>
+            {matchError && <p className="mt-2 text-sm text-text-soft">{matchError}</p>}
+            <button
+              onClick={matchMe}
+              disabled={matching}
+              className="mt-3 w-full rounded-xl bg-strong py-2.5 text-sm font-semibold text-on-strong disabled:opacity-60"
+            >
+              {matching ? "Matching…" : "Match me"}
+            </button>
+          </div>
+        )}
 
         {tab === "writers" ? (
           <div>
@@ -199,4 +229,4 @@ export function CollaborateView({ user }: { user: { penName: string; avatarUrl: 
       <NavDrawer open={drawerOpen} onOpenChange={setDrawerOpen} user={user} active="collaborate" />
     </div>
   );
-}
+      }
