@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { getProjectRole, isOwner } from "@/lib/access";
-import { ANONYMOUS_MODES, anonymousLabel } from "@/lib/anonymous";
+import { ANONYMOUS_MODES, ANONYMOUS_OWNER_LABEL, anonymousLabel } from "@/lib/anonymous";
 import type { CollaboratorRole } from "@prisma/client";
 
 const ACCESS_SELECT = {
@@ -73,8 +73,15 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   // name and no user id (an id would let them look the person up), and the
   // owner gets the real identity separately, as `reveal`, to show when they
   // tap the label.
+  // On an Anonymous Duo the owner is anonymous to their partner too — both
+  // sides start out not knowing each other.
+  const hideOwner = !viewerIsOwner && project?.collaborationMode === "anonymous_duo";
+
   const collaborators = access.map((a): CollaboratorOut => {
     const isYou = a.user.id === userId;
+    if (hideOwner && a.role === "owner") {
+      return { id: a.id, userId: a.id, role: a.role, label: ANONYMOUS_OWNER_LABEL, anonymous: true, anonymousNumber: null, isYou: false };
+    }
     // The owner is never anonymous, whatever the row says.
     const anonymous = a.isAnonymous && a.role !== "owner";
     if (!anonymous) {
@@ -104,6 +111,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     collaborators,
     pendingRequests: hideRequests ? [] : sentRequests,
     incomingRequests: hideRequests ? [] : incomingRequests,
+    // An Anonymous Duo with only its owner in it is waiting to be matched.
+    waitingForPartner: project?.collaborationMode === "anonymous_duo" && access.length < 2,
   });
 }
 
@@ -125,6 +134,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!recipientId) return NextResponse.json({ error: "Pick someone to invite." }, { status: 400 });
   if (recipientId === userId) return NextResponse.json({ error: "That's your own account." }, { status: 400 });
 
+  const project = await prisma.project.findUnique({ where: { id: params.id }, select: { collaborationMode: true } });
+  if (project?.collaborationMode === "anonymous_duo") {
+    return NextResponse.json({ error: "An Anonymous Duo partner is matched, not invited." }, { status: 400 });
+  }
+
   const existingAccess = await prisma.projectAccess.findUnique({
     where: { projectId_userId: { projectId: params.id, userId: recipientId } },
   });
@@ -144,4 +158,4 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
     throw err;
   }
-  }
+}
