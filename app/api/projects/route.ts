@@ -21,7 +21,9 @@ export async function GET() {
   });
 
   return NextResponse.json({
-    projects: access.map((a) => ({ ...a.project, role: a.role })),
+    // Only the owner gets their own user id back — on an Anonymous Duo it
+    // would let the partner look the owner up.
+    projects: access.map((a) => ({ ...a.project, ownerId: a.role === "owner" ? a.project.ownerId : "", role: a.role })),
   });
 }
 
@@ -93,4 +95,4 @@ export async function POST(req: NextRequest) {
     const detail = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: `Couldn't create the story: ${detail}` }, { status: 500 });
   }
-}
+          }
