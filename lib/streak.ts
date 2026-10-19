@@ -1,14 +1,17 @@
 import { prisma } from "@/lib/prisma";
+import { buildStreakAndHeatmap, type HeatmapDay } from "@/lib/streak-calc";
 
-export type HeatmapDay = { date: string; words: number };
+export type { HeatmapDay };
 
-function toDateKey(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
-export async function getStreakAndHeatmap(userId: string): Promise<{ streak: number; heatmap: HeatmapDay[] }> {
+// Per-day word totals for a bit over the last year, as plain calendar dates
+// exactly as they were logged (the writer's own day — see the chapter route).
+// The streak and the 90-day grid are built from these in the browser,
+// because only the browser knows what "today" is for the writer; the server
+// clock is UTC and would put late-night writing in the wrong cell.
+export async function getWritingDays(userId: string): Promise<HeatmapDay[]> {
   const since = new Date();
   since.setUTCDate(since.getUTCDate() - 400);
+  since.setUTCHours(0, 0, 0, 0);
 
   const rows = await prisma.writingLog.findMany({
     where: { userId, date: { gte: since } },
@@ -17,31 +20,14 @@ export async function getStreakAndHeatmap(userId: string): Promise<{ streak: num
 
   const byDay = new Map<string, number>();
   for (const row of rows) {
-    const key = toDateKey(row.date);
+    const key = row.date.toISOString().slice(0, 10);
     byDay.set(key, (byDay.get(key) ?? 0) + row.words);
   }
+  return Array.from(byDay, ([date, words]) => ({ date, words }));
+}
 
-  let streak = 0;
-  const cursor = new Date();
-  cursor.setUTCHours(0, 0, 0, 0);
-  const todayKey = toDateKey(cursor);
-  if ((byDay.get(todayKey) ?? 0) <= 0) {
-    cursor.setUTCDate(cursor.getUTCDate() - 1);
-  }
-  while ((byDay.get(toDateKey(cursor)) ?? 0) > 0) {
-    streak += 1;
-    cursor.setUTCDate(cursor.getUTCDate() - 1);
-  }
-
-  const heatmap: HeatmapDay[] = [];
-  const day = new Date();
-  day.setUTCHours(0, 0, 0, 0);
-  day.setUTCDate(day.getUTCDate() - 89);
-  for (let i = 0; i < 90; i++) {
-    const key = toDateKey(day);
-    heatmap.push({ date: key, words: Math.max(0, byDay.get(key) ?? 0) });
-    day.setUTCDate(day.getUTCDate() + 1);
-  }
-
-  return { streak, heatmap };
+// Kept for /api/stats, which nothing in the app calls: same numbers, counted
+// against UTC's "today". The Dashboard doesn't use this.
+export async function getStreakAndHeatmap(userId: string): Promise<{ streak: number; heatmap: HeatmapDay[] }> {
+  return buildStreakAndHeatmap(await getWritingDays(userId), new Date().toISOString().slice(0, 10));
 }
