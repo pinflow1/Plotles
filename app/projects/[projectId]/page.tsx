@@ -20,5 +20,9 @@ export default async function ProjectPage({ params }: { params: { projectId: str
   ]);
   if (!project || !user) notFound();
 
-  return <ProjectView initialProject={{ ...project, role }} user={user} />;
+  // The page never needs the owner's user id, and on an Anonymous Duo it
+  // would let the partner look the owner up — only the owner gets it.
+  const ownerId = role === "owner" ? project.ownerId : "";
+
+  return <ProjectView initialProject={{ ...project, ownerId, role }} user={user} />;
 }
