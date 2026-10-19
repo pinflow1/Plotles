@@ -34,12 +34,18 @@ type IncomingRequest = {
   createdAt: string;
   initiator: { id: string; penName: string; avatarUrl: string | null; bio: string | null; genres: string[] };
 };
-type CollaboratorsResponse = { collaborators: Collaborator[]; pendingRequests: PendingRequest[]; incomingRequests: IncomingRequest[] };
+type CollaboratorsResponse = {
+  collaborators: Collaborator[];
+  pendingRequests: PendingRequest[];
+  incomingRequests: IncomingRequest[];
+  waitingForPartner?: boolean;
+};
 
 export function CollaboratorsPanel({ projectId, isOwner, onBack }: { projectId: string; isOwner: boolean; onBack?: () => void }) {
   const [collaborators, setCollaborators] = useState<Collaborator[] | null>(null);
   const [pending, setPending] = useState<PendingRequest[]>([]);
   const [incoming, setIncoming] = useState<IncomingRequest[]>([]);
+  const [waitingForPartner, setWaitingForPartner] = useState(false);
   const [respondingTo, setRespondingTo] = useState<string | null>(null);
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
   const [query, setQuery] = useState("");
@@ -55,6 +61,7 @@ export function CollaboratorsPanel({ projectId, isOwner, onBack }: { projectId: 
         setCollaborators(r.collaborators);
         setPending(r.pendingRequests);
         setIncoming(r.incomingRequests);
+        setWaitingForPartner(!!r.waitingForPartner);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Couldn't load collaborators."));
   }, [projectId]);
@@ -112,6 +119,7 @@ export function CollaboratorsPanel({ projectId, isOwner, onBack }: { projectId: 
             setCollaborators(r.collaborators);
             setPending(r.pendingRequests);
             setIncoming(r.incomingRequests);
+            setWaitingForPartner(!!r.waitingForPartner);
           })
           .catch(() => {});
       }
@@ -160,7 +168,7 @@ export function CollaboratorsPanel({ projectId, isOwner, onBack }: { projectId: 
         </div>
       )}
 
-      {isOwner && (
+      {isOwner && !waitingForPartner && (
         <div className="relative mb-3">
           <Search size={15} strokeWidth={1.8} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-soft" />
           <input
@@ -186,6 +194,11 @@ export function CollaboratorsPanel({ projectId, isOwner, onBack }: { projectId: 
         </div>
       )}
       {error && <p className="mb-2 text-xs text-text-soft">{error}</p>}
+      {isOwner && waitingForPartner && (
+        <p className="mb-3 text-sm text-text-soft">
+          Waiting for a partner. A writer who taps Match me in Find Stories will be paired with this story — you won&rsquo;t choose them, and you&rsquo;ll both start out anonymous.
+        </p>
+      )}
 
       <div className="space-y-2">
         {collaborators?.map((c) => {
@@ -194,7 +207,7 @@ export function CollaboratorsPanel({ projectId, isOwner, onBack }: { projectId: 
           // Anonymous Writer label stays put, and a tap shows who it is.
           return (
             <div key={c.id} className="flex items-center gap-3">
-              <Avatar name={c.anonymous ? (c.anonymousNumber ? String(c.anonymousNumber).padStart(2, "0") : "?") : c.label} size="sm" />
+              <Avatar name={c.anonymous && c.anonymousNumber ? String(c.anonymousNumber).padStart(2, "0") : c.label} size="sm" />
               {c.reveal ? (
                 <button
                   onClick={() => setRevealed((prev) => ({ ...prev, [c.id]: !prev[c.id] }))}
@@ -297,4 +310,4 @@ export function CollaboratorsPanel({ projectId, isOwner, onBack }: { projectId: 
       )}
     </div>
   );
-    }
+}
