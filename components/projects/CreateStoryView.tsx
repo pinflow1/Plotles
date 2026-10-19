@@ -194,7 +194,7 @@ export function CreateStoryView() {
 
         {mode === "anonymous_duo" && (
           <p className="text-xs text-text-soft">
-            Matching isn&rsquo;t built yet — this creates the story now, and you&rsquo;ll be able to add an anonymous partner once matching is ready.
+            A writer you don&rsquo;t know will be matched to this story from Find Stories — you won&rsquo;t choose them, and you&rsquo;ll both start out anonymous.
           </p>
         )}
 
@@ -270,5 +270,4 @@ export function CreateStoryView() {
       </div>
     </div>
   );
-            }
-        
+}
