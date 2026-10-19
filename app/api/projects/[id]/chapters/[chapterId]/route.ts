@@ -2,8 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { canEdit, getProjectRole } from "@/lib/access";
+import { dayDiff, isValidDateKey } from "@/lib/streak-calc";
 
 type Params = { params: { id: string; chapterId: string } };
+
+// The writer's own calendar day, sent by their browser. The server's clock
+// is UTC, which puts late-evening (or early-morning) writing in the wrong
+// cell for anyone who isn't. Real time zones are never more than a day from
+// UTC, so anything further off — or not a date at all — is ignored in favor
+// of UTC today.
+function loggedDay(localDate: unknown): Date {
+  const utcToday = new Date().toISOString().slice(0, 10);
+  if (isValidDateKey(localDate) && Math.abs(dayDiff(localDate, utcToday)) <= 1) return new Date(localDate);
+  return new Date(utcToday);
+}
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   const userId = await getSessionUserId();
@@ -55,10 +67,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     ]);
 
     if (wordDelta !== 0) {
-      const today = new Date(new Date().toISOString().slice(0, 10)); // today, midnight UTC
+      const day = loggedDay(body?.localDate);
       await prisma.writingLog.upsert({
-        where: { userId_projectId_date: { userId, projectId: params.id, date: today } },
-        create: { userId, projectId: params.id, date: today, words: wordDelta },
+        where: { userId_projectId_date: { userId, projectId: params.id, date: day } },
+        create: { userId, projectId: params.id, date: day, words: wordDelta },
         update: { words: { increment: wordDelta } },
       });
     }
@@ -85,4 +97,4 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
 
   await prisma.chapter.delete({ where: { id: params.chapterId } });
   return new NextResponse(null, { status: 204 });
-    }
+}
