@@ -35,6 +35,9 @@ export default async function DashboardPage() {
 
   const projects = access.map((a) => ({
     ...a.project,
+    // The page never needs the owner's user id, and on an Anonymous Duo it
+    // would let the partner look the owner up — only the owner gets it.
+    ownerId: a.role === "owner" ? a.project.ownerId : "",
     role: a.role,
     collaboratorCount: a.project._count.access,
   }));
