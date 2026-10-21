@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { Home, Library, NotebookPen, Settings as SettingsIcon, Users } from "lucide-react";
 import { useDragSheet } from "@/lib/use-drag-sheet";
 import { useSessionCache } from "@/lib/session-cache";
+import { useWaitingRequests } from "@/lib/use-waiting-requests";
 import { Avatar } from "@/components/ui/Avatar";
 
 type NavDrawerProps = {
@@ -18,6 +19,8 @@ export function NavDrawer({ open, onOpenChange, user, active }: NavDrawerProps) 
   const router = useRouter();
   const pathname = usePathname();
   const { current } = useSessionCache();
+  // Fetched each time the menu opens — nothing is requested while it's closed.
+  const { waiting } = useWaitingRequests(open);
   const { panelRef, dimmerRef, setOpen, startDrag } = useDragSheet({
     axis: "x",
     direction: -1,
@@ -88,7 +91,7 @@ export function NavDrawer({ open, onOpenChange, user, active }: NavDrawerProps) 
         <nav className="flex flex-col px-3">
           <DrawerItem icon={Home} label="Dashboard" activeItem={active === "dashboard"} onClick={() => go("/dashboard")} />
           <DrawerItem icon={Library} label="Projects" activeItem={false} onClick={() => go("/dashboard")} />
-          <DrawerItem icon={Users} label="Collaborate" activeItem={active === "collaborate"} onClick={() => go("/collaborate")} />
+          <DrawerItem icon={Users} label="Collaborate" badge={waiting ?? 0} activeItem={active === "collaborate"} onClick={() => go("/collaborate")} />
           <DrawerItem
             icon={NotebookPen}
             label="Current Chapter"
@@ -108,12 +111,14 @@ function DrawerItem({
   label,
   activeItem,
   disabled,
+  badge,
   onClick,
 }: {
   icon: typeof Home;
   label: string;
   activeItem: boolean;
   disabled?: boolean;
+  badge?: number;
   onClick: () => void;
 }) {
   return (
@@ -126,6 +131,11 @@ function DrawerItem({
     >
       <Icon size={18} strokeWidth={1.6} />
       {label}
+      {badge ? (
+        <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-strong px-1.5 text-[11px] font-semibold text-on-strong">
+          {badge}
+        </span>
+      ) : null}
     </button>
   );
 }
