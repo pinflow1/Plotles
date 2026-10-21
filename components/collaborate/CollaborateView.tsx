@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, Search } from "lucide-react";
 import { api } from "@/lib/api-client";
+import { useWaitingRequests } from "@/lib/use-waiting-requests";
 import { Avatar } from "@/components/ui/Avatar";
 import { NavDrawer } from "@/components/navigation/NavDrawer";
 import { MyCollaborationsTab } from "@/components/collaborate/MyCollaborationsTab";
@@ -34,6 +35,7 @@ export function CollaborateView({ user }: { user: { penName: string; avatarUrl: 
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("writers");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const { waiting, setWaiting } = useWaitingRequests();
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Writer[]>([]);
@@ -121,6 +123,15 @@ export function CollaborateView({ user }: { user: { penName: string; avatarUrl: 
               className={`shrink-0 rounded-xl px-4 py-2.5 text-sm font-medium ${tab === t.id ? "bg-strong text-on-strong" : "bg-surface text-text-soft"}`}
             >
               {t.label}
+              {t.id === "requests" && waiting ? (
+                <span
+                  className={`ml-2 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[11px] font-semibold ${
+                    tab === t.id ? "bg-paper text-text" : "bg-strong text-on-strong"
+                  }`}
+                >
+                  {waiting}
+                </span>
+              ) : null}
             </button>
           ))}
         </div>
@@ -186,7 +197,7 @@ export function CollaborateView({ user }: { user: { penName: string; avatarUrl: 
         ) : tab === "mine" ? (
           <MyCollaborationsTab onShowRequests={() => setTab("requests")} />
         ) : tab === "requests" ? (
-          <RequestsTab />
+          <RequestsTab onWaitingChange={setWaiting} />
         ) : stories === null ? (
           <p className="px-1 text-sm text-text-soft">Loading…</p>
         ) : stories.length === 0 ? (
@@ -229,4 +240,4 @@ export function CollaborateView({ user }: { user: { penName: string; avatarUrl: 
       <NavDrawer open={drawerOpen} onOpenChange={setDrawerOpen} user={user} active="collaborate" />
     </div>
   );
-      }
+}
