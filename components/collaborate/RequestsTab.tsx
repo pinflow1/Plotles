@@ -22,7 +22,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   return <div className="mb-2 px-1 text-xs uppercase tracking-[0.08em] text-text-soft">{children}</div>;
 }
 
-export function RequestsTab() {
+export function RequestsTab({ onWaitingChange }: { onWaitingChange?: (n: number) => void }) {
   const router = useRouter();
   const [data, setData] = useState<RequestsResponse | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -35,6 +35,11 @@ export function RequestsTab() {
       .then(setData)
       .catch((err) => setError(err instanceof Error ? err.message : "Couldn't load your requests."));
   }, []);
+
+  // Keep the badge on the Requests tab in step with what's actually listed.
+  useEffect(() => {
+    if (data) onWaitingChange?.(data.incoming.length);
+  }, [data, onWaitingChange]);
 
   async function respond(item: RequestItem, status: "accepted" | "rejected") {
     setBusy(item.id);
@@ -163,4 +168,4 @@ export function RequestsTab() {
       )}
     </div>
   );
-                         }
+}
