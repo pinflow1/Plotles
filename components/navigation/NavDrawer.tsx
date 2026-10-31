@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Home, Library, NotebookPen, Settings as SettingsIcon, Users } from "lucide-react";
+import { Home, Library, Lightbulb, NotebookPen, Plus, Settings as SettingsIcon, Users } from "lucide-react";
+import type { Idea } from "@prisma/client";
 import { useDragSheet } from "@/lib/use-drag-sheet";
 import { useSessionCache } from "@/lib/session-cache";
+import { api } from "@/lib/api-client";
 import { useWaitingRequests } from "@/lib/use-waiting-requests";
 import { Avatar } from "@/components/ui/Avatar";
 
@@ -12,7 +14,7 @@ type NavDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   user: { penName: string; avatarUrl: string | null };
-  active: "dashboard" | "project" | "editor" | "settings" | "collaborate";
+  active: "dashboard" | "project" | "editor" | "settings" | "collaborate" | "ideas";
 };
 
 export function NavDrawer({ open, onOpenChange, user, active }: NavDrawerProps) {
@@ -21,6 +23,12 @@ export function NavDrawer({ open, onOpenChange, user, active }: NavDrawerProps) 
   const { current } = useSessionCache();
   // Fetched each time the menu opens — nothing is requested while it's closed.
   const { waiting } = useWaitingRequests(open);
+
+  // Quick capture: an idea can be dropped from any screen that has this
+  // menu, without leaving what you're doing.
+  const [idea, setIdea] = useState("");
+  const [savingIdea, setSavingIdea] = useState(false);
+  const [ideaStatus, setIdeaStatus] = useState<"saved" | "error" | null>(null);
   const { panelRef, dimmerRef, setOpen, startDrag } = useDragSheet({
     axis: "x",
     direction: -1,
@@ -33,6 +41,26 @@ export function NavDrawer({ open, onOpenChange, user, active }: NavDrawerProps) 
   function go(path: string) {
     setOpen(false);
     router.push(path);
+  }
+
+  async function saveIdea(e: React.FormEvent) {
+    e.preventDefault();
+    const body = idea.trim();
+    if (!body || savingIdea) return;
+    setSavingIdea(true);
+    setIdeaStatus(null);
+    try {
+      const { idea: saved } = await api.post<{ idea: Idea }>("/api/ideas", { body });
+      setIdea("");
+      setIdeaStatus("saved");
+      // If the Ideas page is open behind this menu, it adds the idea right away.
+      window.dispatchEvent(new CustomEvent<Idea>("plotless:idea-added", { detail: saved }));
+      setTimeout(() => setIdeaStatus((s) => (s === "saved" ? null : s)), 2500);
+    } catch {
+      setIdeaStatus("error");
+    } finally {
+      setSavingIdea(false);
+    }
   }
 
   function goToCurrentChapter() {
@@ -88,10 +116,38 @@ export function NavDrawer({ open, onOpenChange, user, active }: NavDrawerProps) 
 
         <div className="mx-6 my-5 border-t border-divider" />
 
-        <nav className="flex flex-col px-3">
+        {/* Near the top so the keyboard doesn't cover it; stopPropagation keeps typing and taps here from starting a drawer drag. */}
+        <form onSubmit={saveIdea} onPointerDown={(e) => e.stopPropagation()} className="mb-4 px-6">
+          <div className="flex gap-2">
+            <input
+              value={idea}
+              onChange={(e) => {
+                setIdea(e.target.value);
+                setIdeaStatus(null);
+              }}
+              placeholder="Jot an idea…"
+              aria-label="Jot an idea"
+              className="min-w-0 flex-1 rounded-xl border border-divider bg-transparent px-3 py-2 text-sm text-text outline-none placeholder:text-text-soft focus-visible:border-text"
+            />
+            <button
+              type="submit"
+              disabled={!idea.trim() || savingIdea}
+              aria-label="Save idea"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-strong text-on-strong disabled:opacity-40"
+            >
+              <Plus size={16} strokeWidth={2} />
+            </button>
+          </div>
+          {ideaStatus && (
+            <p className="mt-1.5 text-xs text-text-soft">{ideaStatus === "saved" ? "Saved to Ideas" : "Couldn't save that — try again"}</p>
+          )}
+        </form>
+
+        <nav className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 pb-4">
           <DrawerItem icon={Home} label="Dashboard" activeItem={active === "dashboard"} onClick={() => go("/dashboard")} />
           <DrawerItem icon={Library} label="Projects" activeItem={false} onClick={() => go("/dashboard")} />
           <DrawerItem icon={Users} label="Collaborate" badge={waiting ?? 0} activeItem={active === "collaborate"} onClick={() => go("/collaborate")} />
+          <DrawerItem icon={Lightbulb} label="Ideas" activeItem={active === "ideas"} onClick={() => go("/ideas")} />
           <DrawerItem
             icon={NotebookPen}
             label="Current Chapter"
