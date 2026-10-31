@@ -9,13 +9,12 @@ export default async function DashboardPage() {
   const userId = await getSessionUserId();
   if (!userId) redirect("/login?next=/dashboard");
 
-  const [access, ideas, user, stats, invitations] = await Promise.all([
+  const [access, user, stats, invitations, recentIdeas] = await Promise.all([
     prisma.projectAccess.findMany({
       where: { userId },
       select: { role: true, project: { include: { chapters: true, _count: { select: { access: true } } } } },
       orderBy: { project: { updatedAt: "desc" } },
     }),
-    prisma.idea.findMany({ where: { userId }, orderBy: { createdAt: "desc" } }),
     prisma.user.findUnique({ where: { id: userId }, select: { penName: true, avatarUrl: true } }),
     getStreakAndHeatmap(userId),
     prisma.collaborationRequest.findMany({
@@ -30,6 +29,8 @@ export default async function DashboardPage() {
       },
       orderBy: { createdAt: "desc" },
     }),
+    // Just a glance at the latest few — the Ideas page holds the rest.
+    prisma.idea.findMany({ where: { userId }, orderBy: { createdAt: "desc" }, take: 3 }),
   ]);
   if (!user) redirect("/login");
 
@@ -70,8 +71,8 @@ export default async function DashboardPage() {
   return (
     <DashboardView
       projects={projects}
-      initialIdeas={ideas}
       user={user}
+      initialIdeas={recentIdeas}
       streak={stats.streak}
       heatmap={stats.heatmap}
       dailyGoalTotal={dailyGoalTotal}
