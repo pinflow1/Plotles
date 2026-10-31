@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, Plus } from "lucide-react";
+import { ChevronLeft, Lightbulb, Plus } from "lucide-react";
 import type { Chapter, Idea, Project } from "@prisma/client";
 import { api } from "@/lib/api-client";
 import { formatWordCount } from "@/lib/format";
@@ -21,33 +21,44 @@ type Invitation = {
   createdAt: Date;
   project: { id: string; title: string };
   initiator: { id: string; penName: string; avatarUrl: string | null };
+  // True when the signed-in user owns the story and this is a writer
+  // asking to join it, rather than an invite they received.
+  isJoinRequest: boolean;
 };
 
 export function DashboardView({
   projects,
-  initialIdeas,
   user,
+  initialIdeas,
   streak,
   heatmap,
   dailyGoalTotal,
   initialInvitations,
 }: {
   projects: ProjectWithChapters[];
-  initialIdeas: Idea[];
   user: { penName: string; avatarUrl: string | null };
+  initialIdeas: Idea[];
   streak: number;
   heatmap: HeatmapDay[];
   dailyGoalTotal: number;
   initialInvitations: Invitation[];
 }) {
   const router = useRouter();
-  const [ideas, setIdeas] = useState(initialIdeas);
   const [invitations, setInvitations] = useState(initialInvitations);
   const [respondingTo, setRespondingTo] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [newIdea, setNewIdea] = useState("");
-  const [addingIdea, setAddingIdea] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ideas, setIdeas] = useState(initialIdeas);
+
+  // An idea jotted down from the menu shows up in the preview right away.
+  useEffect(() => {
+    function onAdded(e: Event) {
+      const added = (e as CustomEvent<Idea>).detail;
+      setIdeas((prev) => (prev.some((i) => i.id === added.id) ? prev : [added, ...prev].slice(0, 3)));
+    }
+    window.addEventListener("plotless:idea-added", onAdded);
+    return () => window.removeEventListener("plotless:idea-added", onAdded);
+  }, []);
 
   const mostRecent = projects[0];
   const mostRecentChapter = mostRecent && [...mostRecent.chapters].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0];
@@ -72,27 +83,6 @@ export function DashboardView({
     }
   }
 
-  async function addIdea(e: React.FormEvent) {
-    e.preventDefault();
-    if (!newIdea.trim() || addingIdea) return;
-    setError(null);
-    setAddingIdea(true);
-    try {
-      const { idea } = await api.post<{ idea: Idea }>("/api/ideas", { body: newIdea.trim() });
-      setIdeas((prev) => [idea, ...prev]);
-      setNewIdea("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't save that. Please try again.");
-    } finally {
-      setAddingIdea(false);
-    }
-  }
-
-  async function removeIdea(id: string) {
-    setIdeas((prev) => prev.filter((i) => i.id !== id));
-    await api.delete(`/api/ideas/${id}`);
-  }
-
   return (
     <div className="min-h-screen bg-paper pb-16 pt-[env(safe-area-inset-top)]">
       <header className="flex items-center justify-between px-4 py-3">
@@ -100,7 +90,9 @@ export function DashboardView({
           <ChevronLeft size={20} strokeWidth={1.6} />
         </button>
         <span className="text-xs font-bold tracking-[0.16em] text-text">PLOTLESS</span>
-        <div className="w-9" />
+        <button onClick={() => router.push("/ideas")} aria-label="Ideas" className="rounded-lg p-2.5 text-text active:bg-active">
+          <Lightbulb size={19} strokeWidth={1.6} />
+        </button>
       </header>
 
       <div className="mx-auto max-w-lg px-5">
@@ -114,7 +106,8 @@ export function DashboardView({
                   <Avatar name={inv.initiator.penName} size="sm" />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm text-text">
-                      <span className="font-medium">{inv.initiator.penName}</span> invited you to collaborate on{" "}
+                      <span className="font-medium">{inv.initiator.penName}</span>{" "}
+                      {inv.isJoinRequest ? "wants to join" : "invited you to collaborate on"}{" "}
                       <span className="font-medium">{inv.project.title}</span>
                     </p>
                     {inv.message && <p className="mt-1 text-sm text-text-soft">“{inv.message}”</p>}
@@ -134,7 +127,7 @@ export function DashboardView({
                     disabled={respondingTo === inv.id}
                     className="flex-1 rounded-lg bg-strong py-1.5 text-xs font-semibold text-on-strong disabled:opacity-60"
                   >
-                    {respondingTo === inv.id ? "Joining…" : "Accept"}
+                    {respondingTo === inv.id ? (inv.isJoinRequest ? "Accepting…" : "Joining…") : "Accept"}
                   </button>
                 </div>
               </div>
@@ -194,37 +187,29 @@ export function DashboardView({
           </div>
         )}
 
-        <div className="mb-3 mt-8 text-xs uppercase tracking-[0.08em] text-text-soft">Ideas</div>
-        <form onSubmit={addIdea} className="mb-2 flex gap-2">
-          <input
-            value={newIdea}
-            onChange={(e) => setNewIdea(e.target.value)}
-            placeholder="Jot something down…"
-            className="w-full flex-1 rounded-xl border border-divider bg-transparent px-3 py-2 text-sm text-text outline-none placeholder:text-text-soft focus-visible:border-text"
-          />
-          <button
-            type="submit"
-            disabled={!newIdea.trim() || addingIdea}
-            aria-label="Add idea"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-strong text-on-strong disabled:opacity-40"
-          >
-            <Plus size={16} strokeWidth={2} />
+        {/* A glance at the latest ideas — deliberately quiet, below the stories. The Ideas page is where they live. */}
+        <div className="mb-2 mt-8 flex items-center justify-between">
+          <span className="text-xs uppercase tracking-[0.08em] text-text-soft">Ideas</span>
+          <button onClick={() => router.push("/ideas")} className="text-sm text-text-soft active:text-text">
+            See all
           </button>
-        </form>
-        <div className="space-y-1">
-          {ideas.map((idea) => (
-            <div key={idea.id} className="group flex items-start justify-between gap-2 rounded-xl px-2 py-2">
-              <p className="text-sm text-text-soft">{idea.body}</p>
-              <button onClick={() => removeIdea(idea.id)} className="shrink-0 text-xs text-text-soft/50 active:text-text-soft">
-                Remove
-              </button>
-            </div>
-          ))}
         </div>
+        {ideas.length === 0 ? (
+          <button onClick={() => router.push("/ideas")} className="w-full px-2 py-2 text-left text-sm text-text-soft/80 active:text-text-soft">
+            Nothing here yet. Jot an idea down — it will wait for you.
+          </button>
+        ) : (
+          <div className="space-y-0.5">
+            {ideas.map((idea) => (
+              <button key={idea.id} onClick={() => router.push("/ideas")} className="block w-full rounded-xl px-2 py-2 text-left active:bg-active">
+                <p className="line-clamp-2 text-sm text-text-soft">{idea.body}</p>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <NavDrawer open={drawerOpen} onOpenChange={setDrawerOpen} user={user} active="dashboard" />
     </div>
   );
-            }
-      
+                                                                                    }
