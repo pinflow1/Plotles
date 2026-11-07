@@ -1,22 +1,29 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BookOpen, ChevronLeft, ImageIcon, Download, Users, Info, Flag, Target, Trash2, Camera, Eye } from "lucide-react";
-import type { Chapter, Project, ProjectStatus } from "@prisma/client";
-import { api } from "@/lib/api-client";
-import { timeAgo } from "@/lib/format";
-import { computePace } from "@/lib/pace";
-import { fileToCoverDataUrl } from "@/lib/image-resize";
+import { BookOpen, ChevronLeft, Plus } from "lucide-react";
+import type { ProjectStatus } from "@prisma/client";
+import { formatWordCount, timeAgo } from "@/lib/format";
+import { computePace, type Pace } from "@/lib/pace";
 import { NavDrawer } from "@/components/navigation/NavDrawer";
-import { ChaptersPanel } from "@/components/bottom-sheet/ChaptersPanel";
-import { CollaboratorsPanel } from "@/components/bottom-sheet/CollaboratorsPanel";
 
-type ProjectWithChapters = Project & { chapters: Chapter[]; role: "owner" | "edit" | "view" };
-type Panel = "details" | "status" | "goal" | "collaborators" | "preview" | "delete" | null;
-
-// Matches the cap the server enforces on previewText.
-const PREVIEW_MAX = 3000;
+// Deliberately carries no owner id: on an Anonymous Duo the partner could use
+// it to look the owner up, and this list never needs it.
+export type ProjectListItem = {
+  id: string;
+  title: string;
+  coverUrl: string | null;
+  status: ProjectStatus;
+  goalWordCount: number | null;
+  deadline: Date | null;
+  updatedAt: Date;
+  role: "owner" | "edit" | "view";
+  collaboratorCount: number;
+  // Title of the chapter edited most recently, or null for a story with none yet.
+  currentChapter: string | null;
+  totalWords: number;
+};
 
 const STATUS_LABELS: Record<ProjectStatus, string> = {
   planning: "Planning",
@@ -25,422 +32,115 @@ const STATUS_LABELS: Record<ProjectStatus, string> = {
   complete: "Complete",
 };
 
-function toDateInputValue(d: Date | string | null): string {
-  if (!d) return "";
-  return new Date(d).toISOString().slice(0, 10);
+// "32 of 50,000 words · 12 days left" — or just the word count when there's no goal.
+function wordsLine(totalWords: number, pace: Pace | null): string {
+  if (!pace) return formatWordCount(totalWords);
+  const base = `${totalWords.toLocaleString()} of ${pace.goalWordCount.toLocaleString()} words`;
+  if (pace.wordsRemaining === 0) return `${base} · goal reached`;
+  if (pace.daysRemaining === null) return base;
+  if (pace.overdue) return `${base} · past deadline`;
+  if (pace.daysRemaining === 0) return `${base} · due today`;
+  return `${base} · ${pace.daysRemaining} day${pace.daysRemaining === 1 ? "" : "s"} left`;
 }
 
-export function ProjectView({
-  initialProject,
+// Only for shared stories — kept on its own line so it never crowds out the rest.
+function sharingLine(p: ProjectListItem): string {
+  const parts: string[] = [];
+  if (p.collaboratorCount > 1) parts.push(`${p.collaboratorCount} writers`);
+  if (p.role === "edit") parts.push("Edit access");
+  if (p.role === "view") parts.push("View access");
+  return parts.join(" · ");
+}
+
+function ProjectRow({ project, onOpen }: { project: ProjectListItem; onOpen: () => void }) {
+  const pace = computePace(project.totalWords, project.goalWordCount, project.deadline);
+  const sharing = sharingLine(project);
+
+  return (
+    <button onClick={onOpen} className="flex w-full gap-3.5 rounded-2xl bg-surface p-3.5 text-left active:bg-active">
+      <div className="flex h-[88px] w-[66px] shrink-0 items-center justify-center overflow-hidden rounded-lg bg-active">
+        {project.coverUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- a data URL, not something next/image's optimizer can handle
+          <img src={project.coverUrl} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <BookOpen size={20} strokeWidth={1.3} className="text-text-soft" />
+        )}
+      </div>
+
+      <div className="min-w-0 flex-1 self-center">
+        <div className="truncate font-serif text-[17px] text-text">{project.title}</div>
+        <div className="mt-0.5 truncate text-sm text-text-soft">{project.currentChapter ?? "No chapters yet"}</div>
+        {pace && (
+          <div className="mt-2 h-[3px] overflow-hidden rounded-full bg-active">
+            <div className="h-full rounded-full bg-strong" style={{ width: `${pace.progress * 100}%` }} />
+          </div>
+        )}
+        <div className={`${pace ? "mt-1.5" : "mt-2"} truncate text-xs text-text`}>{wordsLine(project.totalWords, pace)}</div>
+        <div className="mt-0.5 truncate text-xs text-text-soft">
+          {STATUS_LABELS[project.status]} · edited {timeAgo(project.updatedAt)}
+        </div>
+        {sharing && <div className="truncate text-xs text-text-soft">{sharing}</div>}
+      </div>
+    </button>
+  );
+}
+
+export function ProjectsView({
+  projects,
   user,
 }: {
-  initialProject: ProjectWithChapters;
+  projects: ProjectListItem[];
   user: { penName: string; avatarUrl: string | null };
 }) {
   const router = useRouter();
-  const [project, setProject] = useState(initialProject);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [panel, setPanel] = useState<Panel>(null);
-  const [draftTitle, setDraftTitle] = useState(project.title);
-  const [draftDescription, setDraftDescription] = useState(project.description ?? "");
-  const [draftGoal, setDraftGoal] = useState(project.goalWordCount ? String(project.goalWordCount) : "");
-  const [draftDeadline, setDraftDeadline] = useState(toDateInputValue(project.deadline));
-  const [draftLookingFor, setDraftLookingFor] = useState(project.lookingFor ?? "");
-  const [draftPreview, setDraftPreview] = useState(project.previewText ?? "");
-  const [previewBusy, setPreviewBusy] = useState(false);
-  const [previewError, setPreviewError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [coverBusy, setCoverBusy] = useState(false);
-  const [coverError, setCoverError] = useState<string | null>(null);
-  const coverInputRef = useRef<HTMLInputElement>(null);
 
-  const canEdit = project.role === "owner" || project.role === "edit";
-  const isOpenStory = project.collaborationMode === "public" || project.collaborationMode === "public_anonymous";
-  const chapters = project.chapters;
-  const mostRecentChapter = [...chapters].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0];
-  const totalWords = chapters.reduce((sum, c) => sum + c.wordCount, 0);
-  const pace = computePace(totalWords, project.goalWordCount, project.deadline);
+  // The router keeps a page it has just visited for a short while, so coming
+  // back here right after creating or deleting a story could show the old
+  // list. Asking for fresh data on arrival keeps the list honest.
+  useEffect(() => {
+    router.refresh();
+  }, [router]);
 
-  function close() {
-    setPanel(null);
-  }
-
-  function goToChapter(chapterId: string) {
-    router.push(`/editor/${project.id}?chapter=${chapterId}`);
-  }
-
-  function handleChaptersChange(updated: Chapter[]) {
-    setProject((prev) => ({ ...prev, chapters: updated }));
-  }
-
-  async function onCoverSelected(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = ""; // allow picking the same file again later
-    if (!file || !canEdit) return;
-    setCoverError(null);
-    setCoverBusy(true);
-    try {
-      const dataUrl = await fileToCoverDataUrl(file);
-      await api.patch(`/api/projects/${project.id}`, { coverUrl: dataUrl });
-      setProject((prev) => ({ ...prev, coverUrl: dataUrl }));
-    } catch (err) {
-      setCoverError(err instanceof Error ? err.message : "Couldn't set that cover.");
-    } finally {
-      setCoverBusy(false);
-    }
-  }
-
-  async function saveDetails() {
-    const title = draftTitle.trim();
-    close();
-    if (!title) {
-      setDraftTitle(project.title);
-      return;
-    }
-    setBusy(true);
-    try {
-      await api.patch(`/api/projects/${project.id}`, { title, description: draftDescription.trim() || null });
-      setProject((prev) => ({ ...prev, title, description: draftDescription.trim() || null }));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function setStatus(status: ProjectStatus) {
-    close();
-    setBusy(true);
-    try {
-      await api.patch(`/api/projects/${project.id}`, { status });
-      setProject((prev) => ({ ...prev, status }));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function saveGoal() {
-    const goalWordCount = draftGoal.trim() ? Math.max(0, parseInt(draftGoal, 10)) : null;
-    const deadline = draftDeadline || null;
-    close();
-    setBusy(true);
-    try {
-      await api.patch(`/api/projects/${project.id}`, { goalWordCount, deadline });
-      setProject((prev) => ({ ...prev, goalWordCount, deadline: deadline ? new Date(deadline) : null }));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function togglePreview() {
-    if (panel === "preview") {
-      close();
-      return;
-    }
-    setDraftLookingFor(project.lookingFor ?? "");
-    setDraftPreview(project.previewText ?? "");
-    setPreviewError(null);
-    setPanel("preview");
-  }
-
-  async function savePreview() {
-    const lookingFor = draftLookingFor.trim() || null;
-    const previewText = draftPreview.trim() || null;
-    setPreviewBusy(true);
-    setPreviewError(null);
-    try {
-      await api.patch(`/api/projects/${project.id}`, { lookingFor, previewText });
-      setProject((prev) => ({ ...prev, lookingFor, previewText }));
-      close();
-    } catch (err) {
-      setPreviewError(err instanceof Error ? err.message : "Couldn't save that.");
-    } finally {
-      setPreviewBusy(false);
-    }
-  }
-
-  async function confirmDelete() {
-    setBusy(true);
-    try {
-      await api.delete(`/api/projects/${project.id}`);
-      router.replace("/dashboard");
-    } finally {
-      setBusy(false);
-    }
+  function newStory() {
+    router.push("/projects/new");
   }
 
   return (
     <div className="min-h-screen bg-paper pb-16 pt-[env(safe-area-inset-top)]">
-      <input ref={coverInputRef} type="file" accept="image/*" onChange={onCoverSelected} className="hidden" />
-
       <header className="flex items-center justify-between px-4 py-3">
-        <button
-          onClick={() => {
-            close();
-            setDrawerOpen(true);
-          }}
-          aria-label="Menu"
-          className="rounded-lg p-2.5 text-text active:bg-active"
-        >
+        <button onClick={() => setDrawerOpen(true)} aria-label="Menu" className="rounded-lg p-2.5 text-text active:bg-active">
           <ChevronLeft size={20} strokeWidth={1.6} />
         </button>
-        <span className="truncate text-sm text-text-soft">{project.title}</span>
-        <div className="w-9" />
+        <span className="text-xs font-bold tracking-[0.16em] text-text">PROJECTS</span>
+        <button onClick={newStory} aria-label="New story" className="rounded-lg p-2.5 text-text active:bg-active">
+          <Plus size={19} strokeWidth={1.6} />
+        </button>
       </header>
 
-      <div className="mx-auto max-w-lg px-5">
-        <section className="flex flex-col items-center pt-2 text-center">
-          <button
-            onClick={() => canEdit && coverInputRef.current?.click()}
-            disabled={!canEdit || coverBusy}
-            aria-label={project.coverUrl ? "Change cover" : "Add cover"}
-            className="relative flex h-32 w-24 items-center justify-center overflow-hidden rounded-lg bg-surface"
-          >
-            {project.coverUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element -- a data URL, not something next/image's optimizer can handle
-              <img src={project.coverUrl} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <BookOpen size={28} strokeWidth={1.3} className="text-text-soft" />
-            )}
-            {canEdit && (
-              <div className="absolute bottom-1 right-1 flex h-6 w-6 items-center justify-center rounded-full bg-paper/90">
-                {coverBusy ? (
-                  <div className="h-3 w-3 animate-spin rounded-full border-[1.5px] border-text-soft border-t-transparent" />
-                ) : (
-                  <Camera size={12} strokeWidth={2} className="text-text-soft" />
-                )}
-              </div>
-            )}
-          </button>
-          {coverError && <p className="mt-2 text-xs text-text-soft">{coverError}</p>}
-
-          <h1 className="mt-4 font-serif text-2xl text-text">{project.title}</h1>
-          {project.description && <p className="mt-1 max-w-xs text-sm text-text-soft">{project.description}</p>}
-          <p className="mt-1 text-xs text-text-soft">
-            {STATUS_LABELS[project.status]} · Edited {timeAgo(project.updatedAt)}
-          </p>
-
-          {pace && (
-            <div className="mt-3 w-full max-w-xs">
-              <div className="h-1 overflow-hidden rounded-full bg-active">
-                <div className="h-full rounded-full bg-strong" style={{ width: `${pace.progress * 100}%` }} />
-              </div>
-              <div className="mt-1 text-xs text-text-soft">
-                {pace.wordsRemaining === 0
-                  ? "Goal reached"
-                  : pace.dailyTarget !== null
-                    ? pace.overdue
-                      ? `${pace.wordsRemaining.toLocaleString()} words left · past deadline`
-                      : `${pace.dailyTarget.toLocaleString()}/day to finish on time`
-                    : `${pace.wordsRemaining.toLocaleString()} words to go`}
-              </div>
-            </div>
-          )}
-
-          {mostRecentChapter && (
+      <div className="mx-auto max-w-lg px-5 pt-2">
+        {projects.length === 0 ? (
+          <div className="flex flex-col items-center px-6 pt-20 text-center">
+            <BookOpen size={30} strokeWidth={1.2} className="text-text-soft" />
+            <h1 className="mt-5 font-serif text-xl text-text">No projects yet</h1>
+            <p className="mt-2 text-sm text-text-soft">Start a story and it will live here.</p>
             <button
-              onClick={() => goToChapter(mostRecentChapter.id)}
-              className="mt-4 w-full max-w-xs rounded-xl bg-strong py-3 text-sm font-semibold text-on-strong transition-opacity active:opacity-85"
+              onClick={newStory}
+              className="mt-6 w-full max-w-xs rounded-xl bg-strong py-3 text-sm font-semibold text-on-strong transition-opacity active:opacity-85"
             >
-              Continue writing
+              Create your first story
             </button>
-          )}
-        </section>
-
-        <div className="mt-8">
-          <div className="mb-2 text-xs uppercase tracking-[0.08em] text-text-soft">Chapters</div>
-          <ChaptersPanel
-            projectId={project.id}
-            chapters={chapters}
-            activeChapterId={mostRecentChapter?.id ?? ""}
-            canEdit={canEdit}
-            onChaptersChange={handleChaptersChange}
-            onSwitchChapter={goToChapter}
-          />
-        </div>
-
-        <div className="mt-8">
-          <div className="mb-2 text-xs uppercase tracking-[0.08em] text-text-soft">Project</div>
-          <div className="rounded-2xl bg-surface">
-            {canEdit && <ActionRow icon={Info} label="Details" onClick={() => setPanel(panel === "details" ? null : "details")} />}
-            {canEdit && <ActionRow icon={Flag} label="Status" value={STATUS_LABELS[project.status]} onClick={() => setPanel(panel === "status" ? null : "status")} />}
-            {canEdit && <ActionRow icon={Target} label="Goal" onClick={() => setPanel(panel === "goal" ? null : "goal")} />}
-            {canEdit && (
-              <ActionRow
-                icon={ImageIcon}
-                label="Cover"
-                value={coverBusy ? "Uploading…" : project.coverUrl ? "Change" : "Add"}
-                onClick={() => coverInputRef.current?.click()}
-              />
-            )}
-            <ActionRow icon={Download} label="Export" value="Coming soon" disabled onClick={() => {}} />
-            <ActionRow icon={Users} label="Collaborators" onClick={() => setPanel(panel === "collaborators" ? null : "collaborators")} last={project.role !== "owner"} />
-            {project.role === "owner" && isOpenStory && (
-              <ActionRow icon={Eye} label="Public preview" value={project.previewText ? "Excerpt shared" : "No excerpt"} onClick={togglePreview} />
-            )}
-            {project.role === "owner" && <ActionRow icon={Trash2} label="Delete Project" onClick={() => setPanel(panel === "delete" ? null : "delete")} last />}
           </div>
-
-          {panel === "details" && (
-            <div className="mt-2 space-y-2 rounded-2xl bg-surface p-4">
-              <input
-                value={draftTitle}
-                onChange={(e) => setDraftTitle(e.target.value)}
-                placeholder="Title"
-                className="w-full rounded-lg border border-divider bg-transparent px-3 py-2 text-sm text-text outline-none"
-              />
-              <textarea
-                value={draftDescription}
-                onChange={(e) => setDraftDescription(e.target.value)}
-                placeholder="A short description"
-                rows={3}
-                className="w-full resize-none rounded-lg border border-divider bg-transparent px-3 py-2 text-sm text-text outline-none"
-              />
-              <div className="flex gap-2">
-                <button onClick={close} className="flex-1 rounded-lg bg-active py-1.5 text-xs font-medium text-text">
-                  Cancel
-                </button>
-                <button onClick={saveDetails} className="flex-1 rounded-lg bg-strong py-1.5 text-xs font-semibold text-on-strong">
-                  Save
-                </button>
-              </div>
-            </div>
-          )}
-
-          {panel === "status" && (
-            <div className="mt-2 flex flex-wrap gap-2 rounded-2xl bg-surface p-4">
-              {(Object.keys(STATUS_LABELS) as ProjectStatus[]).map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setStatus(s)}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-medium ${s === project.status ? "bg-strong text-on-strong" : "bg-active text-text"}`}
-                >
-                  {STATUS_LABELS[s]}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {panel === "goal" && (
-            <div className="mt-2 space-y-2 rounded-2xl bg-surface p-4">
-              <div className="flex gap-2">
-                <input
-                  type="number"
-                  min={0}
-                  inputMode="numeric"
-                  value={draftGoal}
-                  onChange={(e) => setDraftGoal(e.target.value)}
-                  placeholder="Word goal"
-                  className="w-1/2 rounded-lg border border-divider bg-transparent px-2 py-1.5 text-sm text-text outline-none"
-                />
-                <input
-                  type="date"
-                  value={draftDeadline}
-                  onChange={(e) => setDraftDeadline(e.target.value)}
-                  className="w-1/2 rounded-lg border border-divider bg-transparent px-2 py-1.5 text-sm text-text outline-none"
-                />
-              </div>
-              <div className="flex gap-2">
-                <button onClick={close} className="flex-1 rounded-lg bg-active py-1.5 text-xs font-medium text-text">
-                  Cancel
-                </button>
-                <button onClick={saveGoal} className="flex-1 rounded-lg bg-strong py-1.5 text-xs font-semibold text-on-strong">
-                  Save
-                </button>
-              </div>
-            </div>
-          )}
-
-          {panel === "collaborators" && (
-            <div className="mt-2 rounded-2xl bg-surface p-4">
-              <CollaboratorsPanel projectId={project.id} isOwner={project.role === "owner"} />
-            </div>
-          )}
-
-          {panel === "preview" && (
-            <div className="mt-2 space-y-2 rounded-2xl bg-surface p-4">
-              <p className="text-xs text-text-soft">
-                This is everything a writer browsing Find Stories can read before joining. Nothing from your chapters is shared unless you paste it here.
-              </p>
-              <input
-                value={draftLookingFor}
-                onChange={(e) => setDraftLookingFor(e.target.value)}
-                maxLength={140}
-                placeholder="Looking for (optional)"
-                className="w-full rounded-lg border border-divider bg-transparent px-3 py-2 text-sm text-text outline-none placeholder:text-text-soft"
-              />
-              <textarea
-                value={draftPreview}
-                onChange={(e) => setDraftPreview(e.target.value)}
-                maxLength={PREVIEW_MAX}
-                rows={8}
-                placeholder="Excerpt — paste the passage you're happy for others to read"
-                className="w-full resize-none rounded-lg border border-divider bg-transparent px-3 py-2 font-serif text-sm text-text outline-none placeholder:text-text-soft"
-              />
-              <div className="text-right text-[11px] text-text-soft">
-                {draftPreview.length.toLocaleString()} / {PREVIEW_MAX.toLocaleString()}
-              </div>
-              {previewError && <p className="text-xs text-text-soft">{previewError}</p>}
-              <div className="flex gap-2">
-                <button onClick={close} className="flex-1 rounded-lg bg-active py-1.5 text-xs font-medium text-text">
-                  Cancel
-                </button>
-                <button
-                  onClick={savePreview}
-                  disabled={previewBusy}
-                  className="flex-1 rounded-lg bg-strong py-1.5 text-xs font-semibold text-on-strong disabled:opacity-60"
-                >
-                  {previewBusy ? "Saving…" : "Save"}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {panel === "delete" && (
-            <div className="mt-2 rounded-2xl bg-surface p-4">
-              <p className="mb-2 text-xs text-text-soft">Delete “{project.title}”? This permanently removes it for every collaborator — there&rsquo;s no undo.</p>
-              <div className="flex gap-2">
-                <button onClick={close} className="flex-1 rounded-lg bg-active py-1.5 text-xs font-medium text-text">
-                  Cancel
-                </button>
-                <button onClick={confirmDelete} disabled={busy} className="flex-1 rounded-lg bg-strong py-1.5 text-xs font-semibold text-on-strong disabled:opacity-60">
-                  {busy ? "Deleting…" : "Delete"}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+        ) : (
+          <div className="space-y-2.5">
+            {projects.map((p) => (
+              <ProjectRow key={p.id} project={p} onOpen={() => router.push(`/projects/${p.id}`)} />
+            ))}
+          </div>
+        )}
       </div>
 
-      <NavDrawer open={drawerOpen} onOpenChange={setDrawerOpen} user={user} active="project" />
+      <NavDrawer open={drawerOpen} onOpenChange={setDrawerOpen} user={user} active="projects" />
     </div>
-  );
-}
-
-function ActionRow({
-  icon: Icon,
-  label,
-  value,
-  disabled,
-  last,
-  onClick,
-}: {
-  icon: typeof Info;
-  label: string;
-  value?: string;
-  disabled?: boolean;
-  last?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`flex w-full items-center gap-3 px-4 py-3 text-left [&:not(:first-child)]:border-t [&:not(:first-child)]:border-divider ${
-        last ? "rounded-b-2xl" : ""
-      } first:rounded-t-2xl active:bg-active disabled:active:bg-transparent`}
-    >
-      <Icon size={17} strokeWidth={1.6} className={disabled ? "text-text-soft/50" : "text-text"} />
-      <span className={`flex-1 text-[15px] ${disabled ? "text-text-soft/50" : "text-text"}`}>{label}</span>
-      {value && <span className="text-xs text-text-soft">{value}</span>}
-    </button>
   );
 }
