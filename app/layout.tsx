@@ -3,6 +3,7 @@ import { Fraunces, Source_Serif_4 } from "next/font/google";
 import { ThemeProvider } from "@/lib/theme-context";
 import { EditorPreferencesProvider } from "@/lib/editor-preferences";
 import { SessionCacheProvider } from "@/lib/session-cache";
+import { IdeaCapture } from "@/components/ideas/IdeaCapture";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -55,7 +56,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="overscroll-none font-sans" suppressHydrationWarning>
         <ThemeProvider>
           <SessionCacheProvider>
-            <EditorPreferencesProvider>{children}</EditorPreferencesProvider>
+            <EditorPreferencesProvider>
+              {children}
+              <IdeaCapture />
+            </EditorPreferencesProvider>
           </SessionCacheProvider>
         </ThemeProvider>
       </body>
