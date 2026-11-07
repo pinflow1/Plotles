@@ -14,7 +14,7 @@ type NavDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   user: { penName: string; avatarUrl: string | null };
-  active: "dashboard" | "project" | "editor" | "settings" | "collaborate" | "ideas";
+  active: "dashboard" | "projects" | "project" | "editor" | "settings" | "collaborate" | "ideas";
 };
 
 export function NavDrawer({ open, onOpenChange, user, active }: NavDrawerProps) {
@@ -145,7 +145,7 @@ export function NavDrawer({ open, onOpenChange, user, active }: NavDrawerProps) 
 
         <nav className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 pb-4">
           <DrawerItem icon={Home} label="Dashboard" activeItem={active === "dashboard"} onClick={() => go("/dashboard")} />
-          <DrawerItem icon={Library} label="Projects" activeItem={false} onClick={() => go("/dashboard")} />
+          <DrawerItem icon={Library} label="Projects" activeItem={active === "projects" || active === "project"} onClick={() => go("/projects")} />
           <DrawerItem icon={Users} label="Collaborate" badge={waiting ?? 0} activeItem={active === "collaborate"} onClick={() => go("/collaborate")} />
           <DrawerItem icon={Lightbulb} label="Ideas" activeItem={active === "ideas"} onClick={() => go("/ideas")} />
           <DrawerItem
