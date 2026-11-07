@@ -9,8 +9,9 @@ import { useEditorPreferences } from "@/lib/editor-preferences";
 
 // Signed-in screens only. A whitelist on purpose: login/register (and the "/"
 // redirect) never show the button, and a new signed-in route has to opt in
-// here. /ideas is left out because that page is already a capture form.
-const SHOW_ON = ["/dashboard", "/projects", "/settings", "/editor", "/collaborate"];
+// here. Left out on purpose: /ideas (that page is already a capture form) and
+// /dashboard (its header already has its own lightbulb).
+const SHOW_ON = ["/projects", "/settings", "/editor", "/collaborate"];
 
 // How much of the bottom of the screen the on-screen keyboard covers. Fixed
 // elements are anchored to the layout viewport, which the keyboard sits on
