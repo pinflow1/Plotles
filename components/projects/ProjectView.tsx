@@ -271,7 +271,7 @@ export function ProjectView({
                 onClick={() => coverInputRef.current?.click()}
               />
             )}
-            <ActionRow icon={Download} label="Export" value="Coming soon" disabled onClick={() => {}} />
+            {canEdit && <ActionRow icon={Download} label="Export" onClick={() => router.push(`/projects/${project.id}/export`)} />}
             <ActionRow icon={Users} label="Collaborators" onClick={() => setPanel(panel === "collaborators" ? null : "collaborators")} last={project.role !== "owner"} />
             {project.role === "owner" && isOpenStory && (
               <ActionRow icon={Eye} label="Public preview" value={project.previewText ? "Excerpt shared" : "No excerpt"} onClick={togglePreview} />
@@ -443,5 +443,5 @@ function ActionRow({
       {value && <span className="text-xs text-text-soft">{value}</span>}
     </button>
   );
-    }
+  }
     
