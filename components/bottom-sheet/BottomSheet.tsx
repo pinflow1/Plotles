@@ -77,9 +77,14 @@ export function BottomSheet({
         aria-label="Writing controls"
         className="fixed inset-x-0 bottom-0 z-50 max-h-[80%] overflow-y-auto scrollbar-hide rounded-t-sheet bg-paper pb-[calc(env(safe-area-inset-bottom)+12px)] shadow-[0_-10px_30px_rgba(0,0,0,0.14)]"
       >
-        <div onPointerDown={startDrag} className="flex justify-center py-2.5">
+        <button
+          onPointerDown={startDrag}
+          onClick={() => setOpen(false)}
+          aria-label="Close writing controls"
+          className="flex w-full touch-none justify-center py-2.5"
+        >
           <div className="h-1 w-9 rounded-full bg-divider" />
-        </div>
+        </button>
 
         <div className="px-5 pb-4">
           {subview === "chapters" && (
@@ -112,6 +117,14 @@ export function BottomSheet({
               <ProjectGroup
                 onChapters={() => setSubview("chapters")}
                 onCollaborators={() => setSubview("collaborators")}
+                onExport={
+                  canEdit
+                    ? () => {
+                        setOpen(false);
+                        router.push(`/projects/${projectId}/export`);
+                      }
+                    : null
+                }
                 onSettings={() => {
                   setOpen(false);
                   router.push("/settings");
@@ -123,4 +136,4 @@ export function BottomSheet({
       </div>
     </>
   );
-      }
+}
