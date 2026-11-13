@@ -227,8 +227,11 @@ export function SettingsView({
             </Section>
 
             <Section label="Data">
-              {/* Export isn't built yet — stubbed per the brief. */}
-              <Row label="Export" value="Coming soon" />
+              {current.role === "owner" || current.role === "edit" ? (
+                <Row label="Export" value="Word, PDF, e-book, text" onClick={() => router.push(`/projects/${current.projectId}/export`)} />
+              ) : (
+                <Row label="Export" value="Owners and editors only" />
+              )}
             </Section>
           </>
         ) : (
