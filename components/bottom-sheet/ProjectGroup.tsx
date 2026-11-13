@@ -31,10 +31,13 @@ function ProjectRow({
 export function ProjectGroup({
   onChapters,
   onCollaborators,
+  onExport,
   onSettings,
 }: {
   onChapters: () => void;
   onCollaborators: () => void;
+  // Left out (or null) when this person can't export — only the owner and editors can.
+  onExport?: (() => void) | null;
   onSettings: () => void;
 }) {
   return (
@@ -43,8 +46,7 @@ export function ProjectGroup({
       <ProjectRow icon={BookOpen} label="Chapters" onClick={onChapters} />
       {/* Cover creation isn't built yet — stubbed per the brief. */}
       <ProjectRow icon={ImageIcon} label="Cover" onClick={() => {}} disabled note="Coming soon" />
-      {/* Export isn't built yet — stubbed per the brief. */}
-      <ProjectRow icon={Download} label="Export" onClick={() => {}} disabled note="Coming soon" />
+      <ProjectRow icon={Download} label="Export" onClick={onExport ?? (() => {})} disabled={!onExport} note={onExport ? undefined : "Editors only"} />
       <ProjectRow icon={Users} label="Collaborators" onClick={onCollaborators} />
       <ProjectRow icon={SettingsIcon} label="Settings" onClick={onSettings} />
     </div>
