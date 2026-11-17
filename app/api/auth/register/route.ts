@@ -17,6 +17,9 @@ export async function POST(req: NextRequest) {
   if (!penName) {
     return NextResponse.json({ error: "Enter a pen name." }, { status: 400 });
   }
+  if (body?.acceptedTerms !== true) {
+    return NextResponse.json({ error: "Please agree to the Terms of Use and Privacy Policy to continue." }, { status: 400 });
+  }
 
   try {
     const existing = await prisma.user.findUnique({ where: { email } });
@@ -34,14 +37,9 @@ export async function POST(req: NextRequest) {
     res.cookies.set(AUTH_COOKIE, token, authCookieOptions());
     return res;
   } catch (err) {
-    // Logged here so the real cause (e.g. DB unreachable, or `prisma db
-    // push` never run against this database) shows up in Vercel's Runtime
-    // Logs, instead of only a bare 500 reaching the client.
+    // The real cause (e.g. DB unreachable) goes to Vercel's Runtime Logs; the
+    // person signing up only gets a plain message, so internals aren't exposed.
     console.error("POST /api/auth/register failed:", err);
-    // TEMPORARY: showing the real error so it's visible on-screen while
-    // you're the only user — swap back to a generic message before this
-    // has real users, so internals aren't exposed to them.
-    const detail = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: `Registration failed: ${detail}` }, { status: 500 });
+    return NextResponse.json({ error: "We couldn't create your account just now. Please try again in a moment." }, { status: 500 });
   }
 }
