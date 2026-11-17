@@ -10,6 +10,7 @@ export default function RegisterPage() {
   const [penName, setPenName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -18,7 +19,7 @@ export default function RegisterPage() {
     setError(null);
     setSubmitting(true);
     try {
-      await api.post("/api/auth/register", { penName, email, password });
+      await api.post("/api/auth/register", { penName, email, password, acceptedTerms: agreed });
       router.replace("/dashboard");
       router.refresh();
     } catch (err) {
@@ -72,6 +73,28 @@ export default function RegisterPage() {
               placeholder="At least 8 characters"
               className="mt-2 w-full border-b border-divider bg-transparent py-2 text-text placeholder:text-text-soft/60 outline-none focus-visible:border-text"
             />
+          </label>
+
+          {/* Opens in a new tab so what's been typed above isn't lost. */}
+          <label className="flex items-start gap-3 text-sm leading-snug text-text-soft">
+            <input
+              type="checkbox"
+              required
+              checked={agreed}
+              onChange={(e) => setAgreed(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-strong"
+            />
+            <span>
+              I&rsquo;m 13 or older and I agree to the{" "}
+              <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-text underline underline-offset-2">
+                Terms of Use
+              </a>{" "}
+              and{" "}
+              <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-text underline underline-offset-2">
+                Privacy Policy
+              </a>
+              .
+            </span>
           </label>
 
           {error && <p className="text-sm text-text">{error}</p>}
