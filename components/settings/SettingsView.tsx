@@ -9,6 +9,7 @@ import { useSessionCache } from "@/lib/session-cache";
 import { api } from "@/lib/api-client";
 import { Segmented } from "@/components/ui/Segmented";
 import { NavDrawer } from "@/components/navigation/NavDrawer";
+import { SUPPORT_EMAIL } from "@/components/legal/LegalPage";
 import { CollaboratorsPanel } from "@/components/bottom-sheet/CollaboratorsPanel";
 
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
@@ -242,6 +243,12 @@ export function SettingsView({
           <Row label="Pen name" value={user.penName} />
           <Row label="Email" value={user.email} />
           <Row label="Sign out" onClick={signOut} />
+        </Section>
+
+        <Section label="Help">
+          <Row label="Terms of Use" onClick={() => router.push("/terms")} />
+          <Row label="Privacy Policy" onClick={() => router.push("/privacy")} />
+          <Row label="Contact support" value={SUPPORT_EMAIL} onClick={() => (window.location.href = `mailto:${SUPPORT_EMAIL}`)} />
         </Section>
 
         {current && isProjectOwner && (
