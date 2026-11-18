@@ -11,7 +11,8 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: "/",
     scope: "/",
     display: "standalone",
-    background_color: "#111111",
+    // The launch screen is black to match the icon; the status bar matches the app's own dark page.
+    background_color: "#000000",
     theme_color: "#111111",
     lang: "en",
     categories: ["books", "productivity"],
