@@ -85,6 +85,16 @@ function LoginForm() {
             Create an account
           </Link>
         </p>
+
+        <p className="mt-4 text-center text-xs text-text-soft">
+          <Link href="/terms" className="underline underline-offset-2">
+            Terms
+          </Link>
+          {" · "}
+          <Link href="/privacy" className="underline underline-offset-2">
+            Privacy
+          </Link>
+        </p>
       </div>
     </main>
   );
