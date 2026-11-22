@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { canEdit, getProjectRole, isOwner } from "@/lib/access";
+import { getLiveblocksClient } from "@/lib/liveblocks";
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const userId = await getSessionUserId();
@@ -60,8 +61,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ project: { ...project, ownerId: isOwner(role) ? project.ownerId : "" } });
   } catch (err) {
     console.error(`PATCH /api/projects/${params.id} failed:`, err);
-    const detail = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: `Couldn't save that: ${detail}` }, { status: 500 });
+    return NextResponse.json({ error: "Couldn't save that. Please try again." }, { status: 500 });
   }
 }
 
@@ -74,10 +74,21 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
 
   try {
     await prisma.project.delete({ where: { id: params.id } });
-    return new NextResponse(null, { status: 204 });
   } catch (err) {
     console.error(`DELETE /api/projects/${params.id} failed:`, err);
-    const detail = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: `Couldn't delete that: ${detail}` }, { status: 500 });
+    return NextResponse.json({ error: "Couldn't delete that. Please try again." }, { status: 500 });
   }
+
+  // The story's text lives in Liveblocks, not in our database, so deleting
+  // the story has to delete it there too (we say it's gone for everyone). The
+  // story itself is already deleted by now, so a hiccup here is logged for
+  // clean-up rather than shown as a failure.
+  try {
+    await getLiveblocksClient().deleteRoom(`project:${params.id}`);
+  } catch (err) {
+    if ((err as { status?: unknown } | null)?.status !== 404) {
+      console.error(`Deleted project ${params.id}, but couldn't remove its Liveblocks room (project:${params.id}):`, err);
+    }
+  }
+  return new NextResponse(null, { status: 204 });
 }
