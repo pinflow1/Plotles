@@ -81,12 +81,18 @@ export default function PrivacyPage() {
 
       <Section id="delete-account" title="Delete your account and data">
         <p>
-          To delete your account, email <SupportLink /> from the address on your account with the subject &ldquo;Delete my
-          account&rdquo;. We&rsquo;ll confirm by email and delete it within 30 days.
+          The quickest way is in the app: open the menu, go to Settings, and tap &ldquo;Delete my account&rdquo;. It happens
+          straight away. If you can&rsquo;t sign in, email <SupportLink /> from the address on your account with the subject
+          &ldquo;Delete my account&rdquo;, and we&rsquo;ll confirm by email and delete it within 30 days. The steps are also on
+          our{" "}
+          <Link href="/delete-account" className="text-text underline underline-offset-2">
+            Delete your account
+          </Link>{" "}
+          page.
         </p>
         <BulletList
           items={[
-            "Deleted: your profile, ideas, writing activity, collaboration requests, and the stories you own. A story you own is deleted for everyone who had access, so please export it first.",
+            "Deleted: your profile, ideas, writing activity, collaboration requests, and the stories you own, including their text at our editing provider. A story you own is deleted for everyone who had access, so please export it first.",
             "Kept: text you wrote in someone else’s story stays in that story. We may also keep limited records where the law requires it, or to deal with abuse.",
           ]}
         />
