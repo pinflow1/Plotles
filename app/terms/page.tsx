@@ -2,138 +2,122 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { BulletList, LegalPage, Section, SupportLink } from "@/components/legal/LegalPage";
 
-export const metadata: Metadata = { title: "Privacy Policy · Plotless" };
+export const metadata: Metadata = { title: "Terms of Use · Plotless" };
 
-export default function PrivacyPage() {
+export default function TermsPage() {
   return (
-    <LegalPage title="Privacy Policy">
+    <LegalPage title="Terms of Use">
       <p>
-        This explains what Plotless collects, why, who can see it, and what you can do about it. Plotless is run by Qing. If
-        you have any questions, email <SupportLink />.
+        These are the rules for using Plotless, the writing app and website run by Qing (&ldquo;Plotless&rdquo;, &ldquo;we&rdquo;,
+        &ldquo;us&rdquo;). By creating an account or using Plotless you agree to them. If you don&rsquo;t agree, please
+        don&rsquo;t use it. Our{" "}
+        <Link href="/privacy" className="text-text underline underline-offset-2">
+          Privacy Policy
+        </Link>{" "}
+        explains how we handle your information.
       </p>
 
-      <Section title="What we collect">
-        <p>What you give us:</p>
+      <Section title="Who can use Plotless">
         <BulletList
           items={[
-            "Account details: your email address, a password (stored scrambled, or hashed, so we can’t read it) and a pen name.",
-            "Optional profile details: a picture, a bio, genres, interests, and a real name (kept private, see below).",
-            "What you write and do: your stories (titles, descriptions, covers, goals), chapters and their text, ideas, collaboration requests and the messages in them, and which stories you can open.",
+            "You must be at least 13 years old.",
+            "Give us accurate information, and keep your password private. You’re responsible for what happens under your account.",
+            <>If you think someone else has got into your account, email <SupportLink /> straight away.</>,
           ]}
         />
-        <p>What we collect automatically:</p>
-        <BulletList
-          items={[
-            "Writing activity: daily word counts, used for your streaks and stats.",
-            "A sign-in cookie that keeps you signed in for 30 days, and settings such as theme and text size, which are saved on your own device.",
-            "Standard server logs (IP address, device and browser type, pages requested, and times), kept by our hosting provider for security and reliability.",
-          ]}
-        />
+      </Section>
+
+      <Section title="Your writing is yours">
         <p>
-          We don&rsquo;t use advertising, analytics or tracking tools. We don&rsquo;t collect your location, contacts, camera,
-          microphone or payment details.
+          Everything you write in Plotless belongs to you. We don&rsquo;t claim ownership of it. You give us permission to store
+          it, back it up, show it to the people you choose to share it with, and process it as needed to run Plotless, and
+          nothing more.
+        </p>
+        <p>We don&rsquo;t sell your writing, and we don&rsquo;t use it to train AI models.</p>
+        <p>You&rsquo;re responsible for what you write. Only share work you have the right to share.</p>
+      </Section>
+
+      <Section title="Writing with others">
+        <BulletList
+          items={[
+            "People you add to a story can see it, and can change it if you give them edit access, according to the role you choose.",
+            "If you set a story to public, other signed-in writers can see its title, description, genres and the preview you write, and can ask to join.",
+            "Text you write in someone else’s story stays part of that story, even if you later leave or delete your account. The story’s owner decides what happens to it.",
+            "If you own a story and delete it, it’s deleted for everyone who had access.",
+            "On anonymous stories, writers appear under a generic name. Don’t try to work out who someone is. If you do see a real name (an owner can, when a writer chose to give one), keep it to yourself.",
+          ]}
+        />
+      </Section>
+
+      <Section title="What isn’t allowed">
+        <p>Please don&rsquo;t use Plotless to:</p>
+        <BulletList
+          items={[
+            "do anything illegal, or help someone else do it;",
+            "sexually exploit or endanger a child in any way (see Child safety below);",
+            "post sexually explicit material. Fiction with mature themes is welcome; pornography is not;",
+            "threaten, harass, bully, stalk or discriminate against anyone, or post hate speech;",
+            "pretend to be someone you aren’t;",
+            "send spam, scams or unwanted promotions;",
+            "post work you don’t have the right to share, such as someone else’s writing;",
+            "collect other people’s information, scrape Plotless, or try to break, probe or overload it.",
+          ]}
+        />
+      </Section>
+
+      <Section id="child-safety" title="Child safety">
+        <p>
+          Plotless has zero tolerance for child sexual abuse and exploitation. Any content or account involved is removed and,
+          where the law requires or allows, reported to the authorities. If you see anything that puts a child at risk, email{" "}
+          <SupportLink /> and we&rsquo;ll look at it as quickly as we can.
         </p>
       </Section>
 
-      <Section title="How we use it">
-        <BulletList
-          items={[
-            "To run Plotless: sign you in, save and sync your writing, let you collaborate, and let you export.",
-            "To keep it safe: prevent abuse, fix bugs and enforce our Terms of Use.",
-            "To reply when you contact us.",
-          ]}
-        />
-        <p>We don&rsquo;t sell your personal information, and we don&rsquo;t use it for advertising.</p>
-      </Section>
-
-      <Section title="Who can see what">
-        <BulletList
-          items={[
-            "Other writers on Plotless can find you by pen name, bio, genres or interests, and can see your pen name, picture, bio, genres and interests. Your email address is never shown to other writers.",
-            "Stories: the people you give access to can see a story according to their role. For a public story, other signed-in writers can see its title, description, genres and the preview you write, and can ask to join.",
-            "Anonymous stories: other writers see a generic name instead of your pen name. If you gave a real name, only the story’s owner can see it, and only when they tap your anonymous name in that story.",
-            "Your ideas, writing activity and settings are private to you.",
-          ]}
-        />
-      </Section>
-
-      <Section title="Who we share it with">
-        <p>A few services help us run Plotless and handle data on our behalf:</p>
-        <BulletList
-          items={[
-            "Vercel hosts the app and website.",
-            "Liveblocks provides real-time editing: the text of your chapters is stored and synced there.",
-            "A managed PostgreSQL database service stores account and story details.",
-          ]}
-        />
+      <Section title="Reporting a problem">
         <p>
-          We may also share information when the law requires it, or to protect someone&rsquo;s safety, for example to report
-          child exploitation to the authorities. Our providers may process data in the United States and in other countries
-          where they operate.
+          To report a writer, a story or a message that breaks these rules, email <SupportLink /> with the writer&rsquo;s pen
+          name or the story&rsquo;s title and what happened. We review every report. We may remove content, limit features, or
+          suspend or close accounts, without warning when something is serious. If you think we got it wrong, tell us.
         </p>
       </Section>
 
-      <Section title="How long we keep it">
+      <Section title="Your account">
         <p>
-          We keep your information while your account is open. When you delete your account, we delete it as described below.
-        </p>
-      </Section>
-
-      <Section id="delete-account" title="Delete your account and data">
-        <p>
-          The quickest way is in the app: open the menu, go to Settings, and tap &ldquo;Delete my account&rdquo;. It happens
-          straight away. If you can&rsquo;t sign in, email <SupportLink /> from the address on your account with the subject
-          &ldquo;Delete my account&rdquo;, and we&rsquo;ll confirm by email and delete it within 30 days. The steps are also on
-          our{" "}
+          You can stop using Plotless at any time, and you can delete your account yourself in Settings (&ldquo;Delete my
+          account&rdquo;). The steps, and what is and isn&rsquo;t deleted, are on the{" "}
           <Link href="/delete-account" className="text-text underline underline-offset-2">
             Delete your account
           </Link>{" "}
-          page.
-        </p>
-        <BulletList
-          items={[
-            "Deleted: your profile, ideas, writing activity, collaboration requests, and the stories you own, including their text at our editing provider. A story you own is deleted for everyone who had access, so please export it first.",
-            "Kept: text you wrote in someone else’s story stays in that story. We may also keep limited records where the law requires it, or to deal with abuse.",
-          ]}
-        />
-      </Section>
-
-      <Section title="Your choices">
-        <p>
-          You can edit your profile in Settings, and export your stories at any time (open a story, then Export). You can also
-          email us to ask for a copy of your information, to correct it, or to delete it. If you live somewhere with privacy
-          laws, such as the EU or UK, you may have more rights; contact us and we&rsquo;ll help.
+          page. We may suspend or close accounts that break these terms or put other people at risk.
         </p>
       </Section>
 
-      <Section title="Security">
+      <Section title="Keeping your work safe">
         <p>
-          We use encrypted connections (HTTPS), hashed passwords and access controls. No service is perfectly secure, so keep
-          your password private.
+          We work to keep Plotless running and your writing safe, but we can&rsquo;t promise it will always be available or free
+          of errors, or that nothing will ever be lost. Please export your stories now and then (open a story, then Export) so
+          you always have your own copy.
         </p>
       </Section>
 
-      <Section title="Children">
+      <Section title="Our responsibility">
         <p>
-          Plotless is for people 13 and older. We don&rsquo;t knowingly collect information from children under 13, and if we
-          learn we have, we&rsquo;ll delete it. If you think a child under 13 has an account, email <SupportLink />.
+          Plotless is provided &ldquo;as is&rdquo;, without promises about how it will work. As far as the law allows, we
+          aren&rsquo;t responsible for indirect or consequential losses, or for lost data or profits, that come from using
+          Plotless. Nothing here takes away rights you have by law that can&rsquo;t be waived.
         </p>
       </Section>
 
       <Section title="Changes">
         <p>
-          We may update this policy. The date at the top will change, and for significant changes we&rsquo;ll tell you in the
-          app or by email. Our{" "}
-          <Link href="/terms" className="text-text underline underline-offset-2">
-            Terms of Use
-          </Link>{" "}
-          explain the rules for using Plotless.
+          We may update these terms. The date at the top will change, and for significant changes we&rsquo;ll tell you in the
+          app or by email. Carrying on using Plotless after a change means you accept it.
         </p>
       </Section>
 
       <Section title="Contact">
         <p>
-          Email <SupportLink />.
+          Questions about these terms? Email <SupportLink />.
         </p>
       </Section>
     </LegalPage>
