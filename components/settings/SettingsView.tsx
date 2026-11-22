@@ -10,6 +10,7 @@ import { api } from "@/lib/api-client";
 import { Segmented } from "@/components/ui/Segmented";
 import { NavDrawer } from "@/components/navigation/NavDrawer";
 import { SUPPORT_EMAIL } from "@/components/legal/LegalPage";
+import { DeleteAccountPanel } from "@/components/settings/DeleteAccountPanel";
 import { CollaboratorsPanel } from "@/components/bottom-sheet/CollaboratorsPanel";
 
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
@@ -282,9 +283,12 @@ export function SettingsView({
             </div>
           </section>
         )}
+
+        <DeleteAccountPanel />
       </div>
 
       <NavDrawer open={drawerOpen} onOpenChange={setDrawerOpen} user={user} active="settings" />
     </div>
   );
-}
+        }
+                
