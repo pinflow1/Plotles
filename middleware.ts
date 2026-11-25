@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AUTH_COOKIE, verifySession } from "@/lib/auth";
 
-const PROTECTED_PREFIXES = ["/dashboard", "/settings", "/editor"];
+const PROTECTED_PREFIXES = ["/dashboard", "/projects", "/settings", "/editor"];
 const AUTH_PATHS = ["/login", "/register"];
 
 export async function middleware(req: NextRequest) {
@@ -30,5 +30,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/settings/:path*", "/editor/:path*", "/login", "/register"],
+  matcher: ["/dashboard/:path*", "/projects/:path*", "/settings/:path*", "/editor/:path*", "/login", "/register"],
 };
