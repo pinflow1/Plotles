@@ -14,7 +14,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new ApiError(res.status, body.error ?? `Request to ${path} failed (${res.status})`);
+    // A server error that didn't come with a message (a crash, a missing
+    // route). The path stays in the console for debugging, not on screen —
+    // it's long, unreadable, and runs off the edge of a phone.
+    if (!body.error) console.error(`Request to ${path} failed (${res.status})`);
+    throw new ApiError(res.status, body.error ?? `Something went wrong (${res.status}). Please try again.`);
   }
   if (res.status === 204) return undefined as T;
   return res.json();
