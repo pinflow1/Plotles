@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { loadCoverArt, peekCoverArt, type CoverArt } from "@/lib/cover-palette";
 
 /**
@@ -36,12 +36,41 @@ export function useCoverArt(src: string | null | undefined): CoverArt | null {
   return art;
 }
 
-type Layer = { id: number; art: CoverArt; state: "in" | "idle" | "out" };
+type Layer = {
+  id: number;
+  art: CoverArt;
+  state: "in" | "idle" | "out";
+  /** Which way the story list moved when this layer was made: 1 on to the next story, -1 back, 0 neither. */
+  dir: number;
+  /** False for the first picture a page shows as it opens, which just fades in. Later ones travel. */
+  moves: boolean;
+};
 
-const FADE_IN_MS = 700;
-const FADE_OUT_MS = 500;
-const KEYFRAMES =
-  "@keyframes plotless-cover-in{from{opacity:0}to{opacity:1}}@keyframes plotless-cover-out{from{opacity:1}to{opacity:0}}";
+/**
+ * How far the background travels when the story changes, as a percentage of
+ * the screen's width: the new colours drift in from the side the swipe came
+ * from and settle into place while the old ones fade away. The picture is
+ * zoomed just enough while it moves that its edges never show, so any number
+ * here is safe. 0 gives a plain fade with only the faintest zoom. Phones set
+ * to "reduce motion" always get the plain fade.
+ */
+const MOTION = 5;
+const MOTION_OUT = MOTION * 0.6;
+const ZOOM_IN = 1 + (2 * MOTION) / 100 + 0.02;
+const ZOOM_OUT = 1 + (2 * MOTION_OUT) / 100 + 0.02;
+
+const round = (n: number) => String(Math.round(n * 1000) / 1000);
+const CSS = [
+  `@keyframes plotless-cover-in{from{opacity:0;transform:translate3d(var(--cover-dx,0%),0,0) scale(${round(ZOOM_IN)})}to{opacity:1;transform:none}}`,
+  `@keyframes plotless-cover-out{from{opacity:1;transform:none}to{opacity:0;transform:translate3d(var(--cover-dx,0%),0,0) scale(${round(ZOOM_OUT)})}}`,
+  "@keyframes plotless-cover-fade-in{from{opacity:0}to{opacity:1}}",
+  "@keyframes plotless-cover-fade-out{from{opacity:1}to{opacity:0}}",
+  ".plotless-cover-in{animation:plotless-cover-in 900ms cubic-bezier(.25,1,.5,1) both}",
+  ".plotless-cover-out{animation:plotless-cover-out 600ms cubic-bezier(.4,0,.2,1) both}",
+  ".plotless-cover-fade-in{animation:plotless-cover-fade-in 700ms ease-out both}",
+  ".plotless-cover-fade-out{animation:plotless-cover-fade-out 500ms ease-in both}",
+  "@media (prefers-reduced-motion:reduce){.plotless-cover-in{animation:plotless-cover-fade-in 700ms ease-out both}.plotless-cover-out{animation:plotless-cover-fade-out 500ms ease-in both}}",
+].join("");
 
 function cssUrl(url: string): string {
   return `url(${JSON.stringify(url)})`;
@@ -80,12 +109,12 @@ function makeGrain(): string | null {
 }
 
 /** The layers to draw once `art` is what should be showing. A new cover goes on top and fades in over the old one. */
-function reconcile(layers: Layer[], art: CoverArt | null, id: number): Layer[] {
+function reconcile(layers: Layer[], art: CoverArt | null, id: number, dir: number, moves: boolean): Layer[] {
   const showing = layers.filter((l) => l.state !== "out");
   const top = showing[showing.length - 1];
   if ((top ? top.art : null) === art) return layers;
-  if (!art) return layers.map((l) => (l.state === "out" ? l : { ...l, state: "out" as const }));
-  return [...layers, { id, art, state: "in" as const }];
+  if (!art) return layers.map((l) => (l.state === "out" ? l : { ...l, state: "out" as const, dir, moves: true }));
+  return [...layers, { id, art, state: "in" as const, dir, moves }];
 }
 
 /**
@@ -94,18 +123,27 @@ function reconcile(layers: Layer[], art: CoverArt | null, id: number): Layer[] {
  * looks exactly as it did before it had one.
  *
  * Put it first inside the page, and don't give the page its own background —
- * it would cover this. Changing `src` cross-fades to the new cover.
+ * it would cover this. Changing `src` moves on to the new cover with a soft
+ * drift and fade.
+ *
+ * `direction` is which way the person just moved through a list of stories:
+ * 1 for on to the next, -1 for back. The new background then drifts in from
+ * that side. Leave it out and the new background settles in place.
  */
-export function CoverBackdrop({ src }: { src?: string | null }) {
+export function CoverBackdrop({ src, direction = 0 }: { src?: string | null; direction?: number }) {
   const art = useCoverArt(src);
-  const [layers, setLayers] = useState<Layer[]>(() => (art ? [{ id: 1, art, state: "idle" }] : []));
+  const [layers, setLayers] = useState<Layer[]>(() => (art ? [{ id: 1, art, state: "idle", dir: 0, moves: false }] : []));
   const [grain, setGrain] = useState<string | null>(null);
   const nextId = useRef(2);
+  // A page that opens with a cover just fades it in; only a later change travels.
+  const opening = useRef(!!src);
 
   useEffect(() => {
     const id = nextId.current++;
-    setLayers((current) => reconcile(current, art, id));
-  }, [art]);
+    const moves = !opening.current;
+    if (art) opening.current = false;
+    setLayers((current) => reconcile(current, art, id, Math.sign(direction), moves));
+  }, [art, direction]);
 
   useEffect(() => {
     setGrain(makeGrain());
@@ -128,7 +166,7 @@ export function CoverBackdrop({ src }: { src?: string | null }) {
       aria-hidden="true"
       className="pointer-events-none fixed inset-0 -z-10 overflow-hidden bg-paper transition-colors duration-300"
     >
-      <style>{KEYFRAMES}</style>
+      <style>{CSS}</style>
       {layers.map((layer) => (
         <ArtLayer key={layer.id} layer={layer} onSettled={settle} />
       ))}
@@ -140,18 +178,18 @@ export function CoverBackdrop({ src }: { src?: string | null }) {
 }
 
 function ArtLayer({ layer, onSettled }: { layer: Layer; onSettled: (id: number, from: Layer["state"]) => void }) {
-  const { art, state } = layer;
-  const animation =
-    state === "in"
-      ? `plotless-cover-in ${FADE_IN_MS}ms ease-out both`
-      : state === "out"
-        ? `plotless-cover-out ${FADE_OUT_MS}ms ease-in both`
-        : undefined;
+  const { art, state, dir, moves } = layer;
+  const motion = state === "idle" ? "" : `plotless-cover-${moves ? "" : "fade-"}${state}`;
+  // Comes in from the side the swipe came from, and leaves towards the other.
+  const style =
+    moves && state !== "idle"
+      ? ({ "--cover-dx": `${state === "in" ? dir * MOTION : -dir * MOTION_OUT}%` } as CSSProperties)
+      : undefined;
 
   return (
     <div
-      className="absolute inset-0"
-      style={{ animation }}
+      className={`absolute inset-0 ${motion}`}
+      style={style}
       onAnimationEnd={(e) => {
         if (e.target === e.currentTarget) onSettled(layer.id, state);
       }}
@@ -180,4 +218,5 @@ function ArtLayer({ layer, onSettled }: { layer: Layer; onSettled: (id: number, 
       )}
     </div>
   );
-}
+  }
+                              
