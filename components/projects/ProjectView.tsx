@@ -8,6 +8,7 @@ import { api } from "@/lib/api-client";
 import { timeAgo } from "@/lib/format";
 import { computePace } from "@/lib/pace";
 import { fileToCoverDataUrl } from "@/lib/image-resize";
+import { CoverBackdrop } from "@/components/ui/CoverBackdrop";
 import { NavDrawer } from "@/components/navigation/NavDrawer";
 import { ChaptersPanel } from "@/components/bottom-sheet/ChaptersPanel";
 import { CollaboratorsPanel } from "@/components/bottom-sheet/CollaboratorsPanel";
@@ -168,7 +169,9 @@ export function ProjectView({
   }
 
   return (
-    <div className="min-h-screen bg-paper pb-16 pt-[env(safe-area-inset-top)]">
+    <div className="min-h-screen pb-16 pt-[env(safe-area-inset-top)]">
+      {/* Follows the cover: pick or change it and the whole page softly re-tints. No cover, plain paper. */}
+      <CoverBackdrop src={project.coverUrl} />
       <input ref={coverInputRef} type="file" accept="image/*" onChange={onCoverSelected} className="hidden" />
 
       <header className="flex items-center justify-between px-4 py-3">
@@ -444,4 +447,5 @@ function ActionRow({
     </button>
   );
   }
-    
+
+      
