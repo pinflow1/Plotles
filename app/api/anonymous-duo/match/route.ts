@@ -22,6 +22,11 @@ export async function POST(_req: NextRequest) {
         AND p."ownerId" <> ${userId}
         AND (SELECT COUNT(*) FROM "ProjectAccess" a WHERE a."projectId" = p."id") = 1
         AND NOT EXISTS (SELECT 1 FROM "ProjectAccess" a WHERE a."projectId" = p."id" AND a."userId" = ${userId})
+        AND NOT EXISTS (
+          SELECT 1 FROM "Block" b
+          WHERE (b."blockerId" = ${userId} AND b."blockedId" = p."ownerId")
+             OR (b."blockerId" = p."ownerId" AND b."blockedId" = ${userId})
+        )
       ORDER BY p."createdAt" ASC
       LIMIT 1
       FOR UPDATE OF p SKIP LOCKED
