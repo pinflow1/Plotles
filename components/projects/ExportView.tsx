@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlignLeft, BookOpen, ChevronLeft, FileText, Printer } from "lucide-react";
 import { formatWordCount } from "@/lib/format";
+import { CoverBackdrop } from "@/components/ui/CoverBackdrop";
 import { PrintBook, type PrintableBook } from "@/components/projects/PrintBook";
 
 type Format = "docx" | "pdf" | "epub" | "txt";
@@ -38,7 +39,7 @@ async function errorFrom(res: Response): Promise<string> {
 export function ExportView({
   project,
 }: {
-  project: { id: string; title: string; chapterCount: number; wordCount: number; anonymous: boolean };
+  project: { id: string; title: string; coverUrl?: string | null; chapterCount: number; wordCount: number; anonymous: boolean };
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<Format | null>(null);
@@ -93,7 +94,9 @@ export function ExportView({
   }
 
   return (
-    <div className="min-h-screen bg-paper pb-16 pt-[env(safe-area-inset-top)]">
+    <div className="min-h-screen pb-16 pt-[env(safe-area-inset-top)]">
+      <CoverBackdrop src={project.coverUrl} />
+
       <header className="flex items-center justify-between px-4 py-3">
         <button onClick={() => router.back()} aria-label="Back" className="rounded-lg p-2.5 text-text active:bg-active">
           <ChevronLeft size={20} strokeWidth={1.6} />
