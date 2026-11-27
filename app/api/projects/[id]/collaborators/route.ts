@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { getProjectRole, isOwner } from "@/lib/access";
+import { blockedWith } from "@/lib/blocks";
 import { ANONYMOUS_MODES, ANONYMOUS_OWNER_LABEL, anonymousLabel } from "@/lib/anonymous";
 import type { CollaboratorRole } from "@prisma/client";
 
@@ -51,6 +52,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     where: { id: params.id },
     select: { ownerId: true, collaborationMode: true },
   });
+  // Someone who is already in the story stays in it, blocked or not. Only a
+  // new join request from a blocked writer is kept out of sight.
+  const hidden = await blockedWith(userId);
 
   const [access, sentRequests, incomingRequests] = await Promise.all([
     prisma.projectAccess.findMany({ where: { projectId: params.id }, select: ACCESS_SELECT }),
@@ -62,7 +66,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     }),
     // Someone found this story and asked to join — waiting on the owner.
     prisma.collaborationRequest.findMany({
-      where: { projectId: params.id, status: "pending", initiatorId: { not: project?.ownerId } },
+      where: { projectId: params.id, status: "pending", initiatorId: { not: project?.ownerId, notIn: hidden } },
       select: INCOMING_SELECT,
       orderBy: { createdAt: "desc" },
     }),
