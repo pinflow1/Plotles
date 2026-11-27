@@ -5,12 +5,12 @@ import { useRouter } from "next/navigation";
 import { ChevronLeft, Lightbulb, Plus } from "lucide-react";
 import type { Chapter, Idea, Project } from "@prisma/client";
 import { api } from "@/lib/api-client";
-import { formatWordCount } from "@/lib/format";
-import { computePace } from "@/lib/pace";
 import { Avatar } from "@/components/ui/Avatar";
+import { CoverBackdrop } from "@/components/ui/CoverBackdrop";
 import { NavDrawer } from "@/components/navigation/NavDrawer";
 import { StreakHeatmap } from "@/components/dashboard/StreakHeatmap";
 import { StoryCard } from "@/components/dashboard/StoryCard";
+import { ContinueWritingCarousel } from "@/components/dashboard/ContinueWritingCarousel";
 
 type ProjectWithChapters = Project & { chapters: Chapter[]; role: "owner" | "edit" | "view"; collaboratorCount: number };
 type HeatmapDay = { date: string; words: number };
@@ -60,10 +60,13 @@ export function DashboardView({
     return () => window.removeEventListener("plotless:idea-added", onAdded);
   }, []);
 
-  const mostRecent = projects[0];
-  const mostRecentChapter = mostRecent && [...mostRecent.chapters].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0];
-  const mostRecentTotalWords = mostRecent?.chapters.reduce((sum, c) => sum + c.wordCount, 0) ?? 0;
-  const heroPace = mostRecent ? computePace(mostRecentTotalWords, mostRecent.goalWordCount, mostRecent.deadline) : null;
+  // The stories "Continue Writing" can offer: ones you're allowed to write in
+  // and that have a chapter to open, most recently touched first (the order the
+  // page already arrives in). The first is showing until you swipe to another,
+  // and the page's background follows whichever one is showing.
+  const continuable = projects.filter((p) => p.role !== "view" && p.chapters.length > 0);
+  const [pickedStoryId, setPickedStoryId] = useState<string | null>(null);
+  const pickedStory = continuable.find((p) => p.id === pickedStoryId) ?? continuable[0];
 
   function newStory() {
     router.push("/projects/new");
@@ -84,7 +87,9 @@ export function DashboardView({
   }
 
   return (
-    <div className="min-h-screen bg-paper pb-16 pt-[env(safe-area-inset-top)]">
+    <div className="min-h-screen pb-16 pt-[env(safe-area-inset-top)]">
+      <CoverBackdrop src={pickedStory?.coverUrl} />
+
       <header className="flex items-center justify-between px-4 py-3">
         <button onClick={() => setDrawerOpen(true)} aria-label="Menu" className="rounded-lg p-2.5 text-text active:bg-active">
           <ChevronLeft size={20} strokeWidth={1.6} />
@@ -137,36 +142,13 @@ export function DashboardView({
 
         <StreakHeatmap streak={streak} heatmap={heatmap} dailyGoalTotal={dailyGoalTotal} />
 
-        {mostRecent && mostRecentChapter && (
-          <section className="mt-4 rounded-2xl bg-surface p-5">
-            <div className="text-xs uppercase tracking-[0.08em] text-text-soft">Continue Writing</div>
-            <div className="mt-2 font-serif text-xl text-text">{mostRecent.title}</div>
-            <div className="mt-0.5 text-sm text-text-soft">
-              {mostRecentChapter.title} · {formatWordCount(mostRecentTotalWords)}
-            </div>
-            {heroPace && (
-              <div className="mt-3">
-                <div className="h-1 overflow-hidden rounded-full bg-active">
-                  <div className="h-full rounded-full bg-strong" style={{ width: `${heroPace.progress * 100}%` }} />
-                </div>
-                <div className="mt-1 text-xs text-text-soft">
-                  {heroPace.wordsRemaining === 0
-                    ? "Goal reached"
-                    : heroPace.dailyTarget !== null
-                      ? heroPace.overdue
-                        ? `${heroPace.wordsRemaining.toLocaleString()} words left · past deadline`
-                        : `${heroPace.dailyTarget.toLocaleString()} words/day to finish on time`
-                      : `${heroPace.wordsRemaining.toLocaleString()} words to go`}
-                </div>
-              </div>
-            )}
-            <button
-              onClick={() => router.push(`/editor/${mostRecent.id}`)}
-              className="mt-4 w-full rounded-xl bg-strong py-3 text-sm font-semibold text-on-strong transition-opacity active:opacity-85"
-            >
-              Continue writing
-            </button>
-          </section>
+        {continuable.length > 0 && (
+          <ContinueWritingCarousel
+            projects={continuable}
+            activeId={pickedStory ? pickedStory.id : null}
+            onActiveChange={setPickedStoryId}
+            onContinue={(id) => router.push(`/editor/${id}`)}
+          />
         )}
 
         <div className="mb-3 mt-8 flex items-center justify-between">
@@ -212,4 +194,5 @@ export function DashboardView({
       <NavDrawer open={drawerOpen} onOpenChange={setDrawerOpen} user={user} active="dashboard" />
     </div>
   );
-                                                                                    }
+        }
+          
