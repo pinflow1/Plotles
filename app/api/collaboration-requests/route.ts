@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
+import { blockedWith } from "@/lib/blocks";
 import { ANONYMOUS_MODES } from "@/lib/anonymous";
 
 const PROJECT_SELECT = { id: true, title: true, ownerId: true, collaborationMode: true } as const;
@@ -16,9 +17,14 @@ export async function GET(_req: NextRequest) {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
+  // Requests from a blocked writer never reach you. Nothing changes for the
+  // writer who sent one: it stays pending on their side, so a block can't be
+  // detected from the outside.
+  const hidden = await blockedWith(userId);
+
   const [received, sent] = await Promise.all([
     prisma.collaborationRequest.findMany({
-      where: { recipientId: userId, status: "pending" },
+      where: { recipientId: userId, status: "pending", initiatorId: { notIn: hidden } },
       select: {
         id: true,
         role: true,
@@ -73,4 +79,4 @@ export async function GET(_req: NextRequest) {
   });
 
   return NextResponse.json({ incoming, sent: outgoing });
-                                         }
+}
