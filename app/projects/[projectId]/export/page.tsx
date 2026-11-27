@@ -16,7 +16,7 @@ export default async function ExportPage({ params }: { params: { projectId: stri
 
   const project = await prisma.project.findUnique({
     where: { id: params.projectId },
-    select: { id: true, title: true, collaborationMode: true, chapters: { select: { wordCount: true } } },
+    select: { id: true, title: true, coverUrl: true, collaborationMode: true, chapters: { select: { wordCount: true } } },
   });
   if (!project) notFound();
 
@@ -25,6 +25,7 @@ export default async function ExportPage({ params }: { params: { projectId: stri
       project={{
         id: project.id,
         title: project.title,
+        coverUrl: project.coverUrl,
         chapterCount: project.chapters.length,
         wordCount: project.chapters.reduce((sum, c) => sum + c.wordCount, 0),
         anonymous: ANONYMOUS_MODES.includes(project.collaborationMode),
