@@ -67,6 +67,16 @@ export function DashboardView({
   const continuable = projects.filter((p) => p.role !== "view" && p.chapters.length > 0);
   const [pickedStoryId, setPickedStoryId] = useState<string | null>(null);
   const pickedStory = continuable.find((p) => p.id === pickedStoryId) ?? continuable[0];
+  // Which way they last moved through their stories, so the background drifts the same way.
+  const [storyDirection, setStoryDirection] = useState(0);
+
+  function pickStory(id: string) {
+    const from = continuable.findIndex((p) => p.id === pickedStory?.id);
+    const to = continuable.findIndex((p) => p.id === id);
+    if (to < 0 || to === from) return;
+    setStoryDirection(to > from ? 1 : -1);
+    setPickedStoryId(id);
+  }
 
   function newStory() {
     router.push("/projects/new");
@@ -88,7 +98,7 @@ export function DashboardView({
 
   return (
     <div className="min-h-screen pb-16 pt-[env(safe-area-inset-top)]">
-      <CoverBackdrop src={pickedStory?.coverUrl} />
+      <CoverBackdrop src={pickedStory?.coverUrl} direction={storyDirection} />
 
       <header className="flex items-center justify-between px-4 py-3">
         <button onClick={() => setDrawerOpen(true)} aria-label="Menu" className="rounded-lg p-2.5 text-text active:bg-active">
@@ -146,7 +156,7 @@ export function DashboardView({
           <ContinueWritingCarousel
             projects={continuable}
             activeId={pickedStory ? pickedStory.id : null}
-            onActiveChange={setPickedStoryId}
+            onActiveChange={pickStory}
             onContinue={(id) => router.push(`/editor/${id}`)}
           />
         )}
@@ -194,5 +204,5 @@ export function DashboardView({
       <NavDrawer open={drawerOpen} onOpenChange={setDrawerOpen} user={user} active="dashboard" />
     </div>
   );
-        }
-          
+                                       }
+            
