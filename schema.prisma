@@ -1,0 +1,233 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String          @id @default(cuid())
+  email          String          @unique
+  penName        String
+  hashedPassword String
+  avatarUrl      String?
+  bio            String?
+  // Optional and private. Never returned by Find Writers or profile pages —
+  // only a story owner sees it, and only when they tap an Anonymous Writer
+  // on their own anonymous story (see /api/projects/[id]/collaborators).
+  realName       String?
+  genres         String[]        @default([])
+  interests      String[]        @default([])
+  createdAt      DateTime        @default(now())
+  // Set by a moderator to suspend the account (see /admin/reports). A
+  // suspended writer can't sign in, and existing sessions stop working.
+  suspendedAt    DateTime?
+  access         ProjectAccess[]
+  ideas          Idea[]
+  logs           WritingLog[]
+  sentRequests     CollaborationRequest[] @relation("SentCollaborationRequests")
+  receivedRequests CollaborationRequest[] @relation("ReceivedCollaborationRequests")
+  blocksMade       Block[]  @relation("BlocksMade")
+  blocksReceived   Block[]  @relation("BlocksReceived")
+  reportsMade      Report[] @relation("ReportsMade")
+  reportsAbout     Report[] @relation("ReportsAbout")
+}
+
+model Project {
+  id            String          @id @default(cuid())
+  title         String
+  description   String?
+  coverUrl      String?
+  ownerId       String
+  goalWordCount Int?
+  deadline      DateTime?
+  status        ProjectStatus   @default(drafting)
+  // Genre tags and an optional note on what kind of collaborator the
+  // story is looking for — shown on Find Stories cards.
+  genres        String[]        @default([])
+  lookingFor    String?
+  // The excerpt the owner chooses to share with writers browsing Find
+  // Stories. Typed or pasted by the owner — nothing is read from the
+  // chapters, so the manuscript is never exposed automatically.
+  previewText   String?
+  // How this story is written — solo by default. Everything about
+  // discoverability and identity (public vs private, known vs anonymous)
+  // is encoded in this one field rather than a pile of separate booleans,
+  // per "these are not cosmetic labels, they determine actual behavior."
+  collaborationMode CollaborationMode @default(solo)
+  // Total writers INCLUDING the owner — null means uncapped (the public
+  // modes). duo/anonymous_duo are always exactly 2 and don't use this.
+  maxParticipants   Int?
+  // Set by a moderator: hides the story from Find Stories and previews
+  // without deleting it. The owner and collaborators keep their access.
+  moderationHidden  Boolean         @default(false)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  chapters      Chapter[]
+  access        ProjectAccess[]
+  ideas         Idea[]
+  logs          WritingLog[]
+  collaborationRequests CollaborationRequest[]
+  reports       Report[]
+}
+
+enum ProjectStatus {
+  planning
+  drafting
+  revising
+  complete
+}
+
+enum CollaborationMode {
+  solo
+  duo
+  anonymous_duo
+  multiple
+  public
+  public_anonymous
+  private
+  private_anonymous
+}
+
+// One row per user, per project, per calendar day — the running total for
+// that day gets incremented as the chapter's word count changes, so streaks
+// and the heatmap are built from real deltas rather than a point-in-time
+// snapshot.
+model WritingLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date
+  words     Int      @default(0)
+
+  @@unique([userId, projectId, date])
+}
+
+model Chapter {
+  id         String   @id @default(cuid())
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title      String   @default("Untitled Chapter")
+  orderIndex Int      @default(0)
+  wordCount  Int      @default(0)
+  updatedAt  DateTime @updatedAt
+}
+
+enum CollaboratorRole {
+  owner
+  edit
+  view
+}
+
+model ProjectAccess {
+  id        String           @id @default(cuid())
+  projectId String
+  project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      CollaboratorRole @default(view)
+  // Anonymous participation (public_anonymous / private_anonymous / the
+  // anonymous_duo match) — the real user is always known internally for
+  // permissions, attribution, and abuse handling; this only controls
+  // what other participants see. Number is assigned sequentially per
+  // project at join time, so "Anonymous Writer 01/02/03" stays stable
+  // even if someone else joins or leaves later.
+  isAnonymous     Boolean @default(false)
+  anonymousNumber Int?
+
+  @@unique([projectId, userId])
+}
+
+enum CollaborationRequestStatus {
+  pending
+  accepted
+  rejected
+}
+
+// One shared model for every direction a collaboration can start from:
+// the owner targeting a specific person (Duo, Private, Multiple), or a
+// writer requesting to join something they found (Public, Public
+// Anonymous). initiator = whoever created the request, recipient =
+// whoever has to respond — which one is the project owner depends on
+// the direction, not on a fixed field.
+model CollaborationRequest {
+  id          String                      @id @default(cuid())
+  projectId   String
+  project     Project                     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  initiatorId String
+  initiator   User                        @relation("SentCollaborationRequests", fields: [initiatorId], references: [id], onDelete: Cascade)
+  recipientId String
+  recipient   User                        @relation("ReceivedCollaborationRequests", fields: [recipientId], references: [id], onDelete: Cascade)
+  role        CollaboratorRole            @default(view)
+  message     String?
+  status      CollaborationRequestStatus  @default(pending)
+  createdAt   DateTime                    @default(now())
+  respondedAt DateTime?
+  reports     Report[]
+
+  // Deliberately no @@unique here. "At most one PENDING request per
+  // (project, initiator, recipient)" is enforced by a partial unique index
+  // created in bootstrap-db-v6 (WHERE status = 'pending') — Prisma can't
+  // express partial indexes, so it exists only in the database, and the
+  // routes catch its P2002. The old @@unique([projectId, recipientId,
+  // status]) was wrong: on a join request the recipient is always the
+  // owner, so it allowed one pending, one accepted and one rejected
+  // request per story in total.
+}
+
+model Idea {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  body      String
+  createdAt DateTime @default(now())
+}
+
+// One row per pair: "blocker doesn't want to see or hear from blocked".
+// Both directions are checked in code (lib/blocks.ts). Created only for
+// writers whose names the blocker can already see, never for an Anonymous
+// Writer — see /api/blocks.
+model Block {
+  id        String   @id @default(cuid())
+  blockerId String
+  blocker   User     @relation("BlocksMade", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedId String
+  blocked   User     @relation("BlocksReceived", fields: [blockedId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([blockerId, blockedId])
+  @@index([blockedId])
+}
+
+// A report about a writer, a story or a collaboration request, read by a
+// moderator at /admin/reports. targetType is 'user' | 'story' | 'request';
+// status is 'open' | 'resolved'. "snapshot" is a copy of what was reported,
+// taken when the report was made, so deleting the content afterwards
+// doesn't erase the evidence. FKs cascade so account deletion keeps working.
+model Report {
+  id              String               @id @default(cuid())
+  reporterId      String
+  reporter        User                 @relation("ReportsMade", fields: [reporterId], references: [id], onDelete: Cascade)
+  targetType      String
+  targetUserId    String?
+  targetUser      User?                @relation("ReportsAbout", fields: [targetUserId], references: [id], onDelete: Cascade)
+  targetProjectId String?
+  targetProject   Project?             @relation(fields: [targetProjectId], references: [id], onDelete: Cascade)
+  targetRequestId String?
+  targetRequest   CollaborationRequest? @relation(fields: [targetRequestId], references: [id], onDelete: Cascade)
+  reason          String
+  details         String?
+  snapshot        String?
+  status          String               @default("open")
+  resolution      String?
+  createdAt       DateTime             @default(now())
+  resolvedAt      DateTime?
+
+  @@index([status, createdAt])
+}
